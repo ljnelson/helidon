@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2020 Oracle and/or its affiliates.
+ * Copyright (c) 2018, 2021 Oracle and/or its affiliates.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import javax.annotation.sql.DataSourceDefinitions;
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.event.Observes;
 import javax.enterprise.inject.CreationException;
+import javax.enterprise.inject.Instance;
 import javax.enterprise.inject.spi.Annotated;
 import javax.enterprise.inject.spi.Extension;
 import javax.enterprise.inject.spi.InjectionPoint;
@@ -45,6 +46,7 @@ import io.helidon.integrations.datasource.cdi.AbstractDataSourceExtension;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.metrics.MetricsTrackerFactory;
 import org.eclipse.microprofile.config.Config;
 
 /**
@@ -104,8 +106,8 @@ public class HikariCPBackedDataSourceExtension extends AbstractDataSourceExtensi
             .addTransitiveTypeClosure(HikariDataSource.class)
             .beanClass(HikariDataSource.class)
             .scope(ApplicationScoped.class)
-            .createWith(ignored -> new HikariDataSource(new HikariConfig(dataSourceProperties)))
-            .destroyWith((dataSource, ignored) -> {
+            .produceWith(instance -> produceHikariDataSource(instance, dataSourceName, dataSourceProperties))
+            .disposeWith((dataSource, ignored) -> {
                     if (dataSource instanceof AutoCloseable) {
                         try {
                             ((AutoCloseable) dataSource).close();
@@ -116,6 +118,20 @@ public class HikariCPBackedDataSourceExtension extends AbstractDataSourceExtensi
                         }
                     }
                 });
+    }
+
+    private static HikariDataSource produceHikariDataSource(final Instance<Object> instance,
+                                                            final Named dataSourceName,
+                                                            final Properties dataSourceProperties) {
+        final HikariDataSource returnValue = new HikariDataSource(new HikariConfig(dataSourceProperties));
+        Instance<MetricsTrackerFactory> i = instance.select(MetricsTrackerFactory.class, dataSourceName);
+        if (i.isUnsatisfied()) {
+            i = instance.select(MetricsTrackerFactory.class); // go for the default one
+        }
+        if (!i.isUnsatisfied()) {
+            returnValue.setMetricsTrackerFactory(i.get());
+        }
+        return returnValue;
     }
 
     private void processAnnotatedType(@Observes

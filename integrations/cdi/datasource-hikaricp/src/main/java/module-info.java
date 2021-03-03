@@ -28,6 +28,7 @@ module io.helidon.integrations.datasource.hikaricp.cdi {
     requires java.sql;
     requires java.annotation;
     requires microprofile.config.api;
+    requires microprofile.metrics.api;
     requires io.helidon.integrations.datasource.cdi;
     requires com.zaxxer.hikari;
 

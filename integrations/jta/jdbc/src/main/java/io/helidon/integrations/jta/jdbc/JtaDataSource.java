@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Oracle and/or its affiliates.
+ * Copyright (c) 2021, 2022 Oracle and/or its affiliates.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ public final class JtaDataSource extends AbstractDataSource implements Synchroni
     private static final Object UNAUTHENTICATED_CONNECTION_IDENTIFIER = new Object();
 
     private static final ThreadLocal<? extends Map<JtaDataSource, Map<Object, TransactionSpecificConnection>>> CONNECTIONS_TL =
-        ThreadLocal.withInitial(() -> new HashMap<>());
+        ThreadLocal.withInitial(HashMap::new);
 
 
     /*
@@ -151,7 +151,10 @@ public final class JtaDataSource extends AbstractDataSource implements Synchroni
      * @exception RuntimeException if the supplied {@code registrar}'s
      * {@link Consumer#accept(Object) accept} method throws a {@link
      * RuntimeException}
+     *
+     * @deprecated This method is slated for removal with no replacement.
      */
+    @Deprecated(forRemoval = true)
     public boolean registerWith(final Consumer<? super Synchronization> registrar) {
         if (this.transactionIsActiveSupplier.getAsBoolean()) {
             registrar.accept(this);
@@ -576,19 +579,6 @@ public final class JtaDataSource extends AbstractDataSource implements Synchroni
         return returnValue;
     }
 
-    /**
-     * A method conforming to the {@link Consumer} contract, used in
-     * this class only via a method reference, that deliberately does
-     * nothing.
-     *
-     * @param ignored ignored
-     *
-     * @see Consumer#accept(Object)
-     */
-    private static void sink(final Object ignored) {
-
-    }
-
 
     /*
      * Inner and nested classes.
@@ -622,13 +612,13 @@ public final class JtaDataSource extends AbstractDataSource implements Synchroni
      * {@link #close()} method has been called and that handles
      * auto-commit gracefully.
      */
-    private static final class TransactionSpecificConnection extends ConditionallyCloseableConnection {
+    static final class TransactionSpecificConnection extends ConditionallyCloseableConnection {
 
         private final boolean oldAutoCommit;
 
         private boolean closeCalled;
 
-        private TransactionSpecificConnection(final Connection delegate) throws SQLException {
+        TransactionSpecificConnection(final Connection delegate) throws SQLException {
             super(delegate, false /* not closeable */);
             this.oldAutoCommit = this.getAutoCommit();
             this.setAutoCommit(false);
@@ -644,7 +634,7 @@ public final class JtaDataSource extends AbstractDataSource implements Synchroni
             super.close();
         }
 
-        private boolean isCloseCalled() throws SQLException {
+        boolean isCloseCalled() throws SQLException {
             return this.closeCalled || this.isClosed();
         }
 

@@ -103,6 +103,58 @@ final class TestXAStartCommitEnd {
     }
 
     @Test
+    final void testEnlistXARTwice()
+        throws HeuristicMixedException,
+               HeuristicRollbackException,
+               NotSupportedException,
+               RollbackException,
+               SystemException {
+        LOGGER.info("Starting testEnlistXARTwice()");
+        tm.begin();
+        Transaction t = tm.getTransaction();
+        XAResource xaResource = new NoOpXAResource();
+        t.enlistResource(xaResource);
+
+        // This is actually interesting.  Narayana checks to see if an
+        // XAResource that is equal (using Object#equals(Object)) to
+        // the supplied XAResource exists in its guts.  This is
+        // effectively testing to see if the *resource* has been seen
+        // before.
+        //
+        // If one does, then obviously it is not reenlisted and this
+        // second enlistment request is effectively ignored.  In our
+        // case, this is all true, so this second enlistment is a
+        // no-op.
+        //
+        // If one does not, then TransactionImple#isNewRM(XAResource)
+        // is called. It's not a boolean-returning method. It loops
+        // over all known XAResources and calls their
+        // isSameRM(XAResource) method. This is effectively testing to
+        // see if the *system to which the resource is connected* (the
+        // resource manager for which the XA resource is an adapter)
+        // has been seen before.
+        //
+        // If it finds one, then the "first registered RM instance
+        // [the existing one, not the new one] will be used to drive
+        // the transaction completion. We add it [the new one, not the
+        // existing one] to the duplicateResource list so we can
+        // delist it correctly later though."  This means more or less
+        // whatever you do there will only be one XAResource that
+        // deals with the prepare/commit/rollback cycle, but there
+        // could potentially be several that take part in the
+        // start/end cycle.
+        //
+        // In this second case described above, start would be called
+        // this time with TMJOIN. See also:
+        // https://github.com/jbosstm/narayana/blob/c5f02d07edb34964b64341974ab689ea44536603/ArjunaJTA/jdbc/classes/com/arjuna/ats/internal/jdbc/drivers/modifiers/ConnectionModifier.java#L82-L89
+        t.enlistResource(xaResource);
+        tm.commit();
+        assertThat(t.getStatus(), is(STATUS_COMMITTED));
+        assertThat(tm.getStatus(), is(STATUS_NO_TRANSACTION));
+        LOGGER.info("Ending testEnlistXARTwice()");
+    }
+  
+    @Test
     final void testTransactionCommitInsteadOfTransactionManagerCommitBlocksThings()
         throws HeuristicMixedException,
                HeuristicRollbackException,
@@ -136,7 +188,16 @@ final class TestXAStartCommitEnd {
         XAResource nop = new NoOpXAResource();
         tm.begin();
         Transaction t = tm.getTransaction();
+
+        // https://jakarta.ee/specifications/transactions/2.0/jakarta-transactions-spec-2.0.html#resource-enlistment
+        //
+        // "The enlistResource request results in the transaction
+        // manager informing the resource manager to start associating
+        // the transaction with the work performed through the
+        // corresponding resource—by invoking the XAResource.start
+        // method."  So this causes XAResource#start to be invoked.
         t.enlistResource(nop);
+
         // Note that (at least with TMSUCCESS) explicit delisting does
         // NOT prevent the XAResource from being enrolled!
         assertThat(t.delistResource(nop, TMSUCCESS), is(true));

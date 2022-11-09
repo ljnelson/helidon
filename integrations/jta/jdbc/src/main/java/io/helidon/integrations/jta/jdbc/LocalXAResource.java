@@ -515,15 +515,6 @@ final class LocalXAResource implements XAResource {
      */
 
 
-    interface Enlistable {
-
-        // Throws IllegalArgumentException if the Xid is bad; throws
-        // IllegalStateException if registering the enlistment didn't
-        // work
-        void enlist(Xid xid);
-
-    }
-
     private static final class IllegalTransitionException extends IllegalStateException {
 
         private static final long serialVersionUID = 1L;
@@ -585,9 +576,6 @@ final class LocalXAResource implements XAResource {
                 }
             } catch (SQLException sqlException) {
                 throw new UncheckedSQLException(sqlException);
-            }
-            if (connection instanceof Enlistable e) {
-                e.enlist(xid);
             }
             // T0, T1 or T2; S0 or S2
         }
@@ -659,7 +647,6 @@ final class LocalXAResource implements XAResource {
             }
             throw new IllegalTransitionException(this.toString());
         }
-
 
         private Association idleToRollbackOnly() {
             if (!this.suspended()) {
@@ -773,9 +760,6 @@ final class LocalXAResource implements XAResource {
         private Association reset() throws SQLException {
             Connection connection = this.connection();
             connection.setAutoCommit(this.priorAutoCommit());
-            if (connection instanceof Enlistable e) {
-                e.enlist(null);
-            }
             return new Association(BranchState.NON_EXISTENT_TRANSACTION,
                                    this.xid(),
                                    false,

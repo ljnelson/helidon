@@ -31,6 +31,10 @@
     <name>Helidon Integrations JTA/JDBC</name>
     <description>JTA- and JDBC-related integration classes</description>
 
+    <properties>
+        <spotbugs.exclude>etc/spotbugs/exclude.xml</spotbugs.exclude>
+    </properties>
+
     <dependencies>
 
         <!-- Compile-scoped dependencies. -->

@@ -349,7 +349,7 @@ final class LocalXAResource implements XAResource {
                                      UnaryOperator<Association> remapOperator) {
         if (a == null) {
             throw new UncheckedXAException((XAException) new XAException(XAER_NOTA)
-                                           .initCause(new NullPointerException("xid: " + xid + "; association: " + a)));
+                                           .initCause(new NullPointerException("xid: " + xid + "; association: null")));
         }
         if (legalBranchStates.contains(a.branchState())) {
             return remapOperator.apply(a);
@@ -372,7 +372,7 @@ final class LocalXAResource implements XAResource {
     private static Association join(Xid x, Association a) {
         if (a == null) {
             throw new UncheckedXAException((XAException) new XAException(XAER_PROTO)
-                                           .initCause(new NullPointerException("xid: " + x + "; association: " + a)));
+                                           .initCause(new NullPointerException("xid: " + x + "; association: null")));
         } else if (a.suspended()) {
             assert a.branchState() == Association.BranchState.IDLE;
             throw new UncheckedXAException((XAException) new XAException(XAER_PROTO)
@@ -392,7 +392,7 @@ final class LocalXAResource implements XAResource {
     private static Association resume(Xid x, Association a) {
         if (a == null) {
             throw new UncheckedXAException((XAException) new XAException(XAER_NOTA)
-                                           .initCause(new NullPointerException("xid: " + x + "; association: " + a)));
+                                           .initCause(new NullPointerException("xid: " + x + "; association: null")));
         }
         return a.resume();
     }
@@ -443,7 +443,7 @@ final class LocalXAResource implements XAResource {
     // above.)
     private static Association forgetAndReset(Association a) {
         try {
-            a = a.reset();
+            a = a.forgetAndReset();
         } catch (SQLException e) {
             throw new UncheckedSQLException(e);
         }

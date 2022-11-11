@@ -36,7 +36,6 @@ import static javax.transaction.xa.XAException.XAER_INVAL;
 import static javax.transaction.xa.XAException.XAER_NOTA;
 import static javax.transaction.xa.XAException.XAER_PROTO;
 import static javax.transaction.xa.XAException.XAER_RMERR;
-import static javax.transaction.xa.XAException.XAER_RMFAIL;
 import static javax.transaction.xa.XAResource.TMENDRSCAN;
 import static javax.transaction.xa.XAResource.TMFAIL;
 import static javax.transaction.xa.XAResource.TMJOIN;
@@ -137,9 +136,7 @@ final class LocalXAResource implements XAResource {
         }
         Connection c = this.connectionFunction.apply(x);
         if (c == null) {
-            // Use XAER_RMFAIL instead of XAER_RMERR because a lack of
-            // a Connection is a fatal error.
-            throw new UncheckedXAException((XAException) new XAException(XAER_RMFAIL)
+            throw new UncheckedXAException((XAException) new XAException(XAER_RMERR)
                                            .initCause(new NullPointerException("connectionFunction.apply(" + x + ")")));
         }
         return new Association(Association.BranchState.ACTIVE, x, c);
@@ -479,6 +476,10 @@ final class LocalXAResource implements XAResource {
         }
     }
 
+    private static Association adjust(Association a, SQLException e) {
+        return a;
+    }
+
 
     /*
      * Inner and nested classes.
@@ -707,11 +708,11 @@ final class LocalXAResource implements XAResource {
                 }
             } finally {
                 try {
-                    a = this.reset();
+                    a = this.reset(sqlException);
                 } catch (SQLException e) {
                     if (sqlException == null) {
                         sqlException = e;
-                    } else {
+                    } else if (sqlException != e) {
                         sqlException.setNextException(e);
                     }
                 } finally {
@@ -728,6 +729,15 @@ final class LocalXAResource implements XAResource {
         }
 
         private Association reset() throws SQLException {
+            return this.reset(null);
+        }
+
+        private Association reset(SQLException sqlException) throws SQLException {
+            // TO DO: the SQLException passed in here is to allow this
+            // method to decide whether to place the Association it
+            // returns into a rollback state (XAER_RB*) or heuristic
+            // state.  As of this writing it is ignored but everything
+            // else is in place to deal with it properly.
             Connection connection = this.connection();
             connection.setAutoCommit(this.priorAutoCommit());
             return new Association(BranchState.NON_EXISTENT_TRANSACTION,

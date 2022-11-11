@@ -15,7 +15,6 @@
  */
 package io.helidon.integrations.jta.jdbc;
 
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.transaction.xa.XAException;
@@ -25,15 +24,6 @@ import javax.transaction.xa.Xid;
 import jakarta.transaction.Synchronization;
 import jakarta.transaction.TransactionManager;
 
-import static javax.transaction.xa.XAException.XAER_PROTO;
-import static javax.transaction.xa.XAException.XAER_RMERR;
-import static javax.transaction.xa.XAException.XA_HEURCOM;
-import static javax.transaction.xa.XAException.XA_HEURHAZ;
-import static javax.transaction.xa.XAException.XA_HEURMIX;
-import static javax.transaction.xa.XAException.XA_HEURRB;
-import static javax.transaction.xa.XAException.XA_RBBASE;
-import static javax.transaction.xa.XAException.XA_RBEND;
-import static javax.transaction.xa.XAException.XA_RETRY;
 import static javax.transaction.xa.XAResource.TMENDRSCAN;
 import static javax.transaction.xa.XAResource.TMFAIL;
 import static javax.transaction.xa.XAResource.TMJOIN;
@@ -43,8 +33,6 @@ import static javax.transaction.xa.XAResource.TMRESUME;
 import static javax.transaction.xa.XAResource.TMSTARTRSCAN;
 import static javax.transaction.xa.XAResource.TMSUCCESS;
 import static javax.transaction.xa.XAResource.TMSUSPEND;
-import static javax.transaction.xa.XAResource.XA_OK;
-import static javax.transaction.xa.XAResource.XA_RDONLY;
 
 final class NoOpXAResource implements Synchronization, XAResource {
 

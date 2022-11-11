@@ -21,7 +21,7 @@
                         https://raw.githubusercontent.com/spotbugs/spotbugs/3.1.0/spotbugs/etc/findbugsfilter.xsd">
     <!-- These are delegating classes. User input validation would need to occur upstream. -->
     <Match>
-        <Class name="io.helidon.integrations.jdbc.DelegatingConnection"/>
+        <Package name="io.helidon.integrations.jdbc"/>
         <Bug pattern="EXTERNAL_CONFIG_CONTROL"/>
     </Match>
     <Match>

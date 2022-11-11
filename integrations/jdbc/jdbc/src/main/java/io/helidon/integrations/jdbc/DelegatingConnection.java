@@ -106,6 +106,7 @@ public class DelegatingConnection implements Connection {
 
     @Override
     public void close() throws SQLException {
+        // (No need to check isClosed().)
         this.delegate().close();
     }
 
@@ -290,6 +291,7 @@ public class DelegatingConnection implements Connection {
 
     @Override
     public boolean isValid(int timeout) throws SQLException {
+        // (No need to check isClosed().)
         return this.delegate().isValid(timeout);
     }
 
@@ -335,6 +337,7 @@ public class DelegatingConnection implements Connection {
 
     @Override
     public void abort(Executor executor) throws SQLException {
+        // (No need to check isClosed().)
         this.delegate().abort(executor);
     }
 
@@ -350,11 +353,13 @@ public class DelegatingConnection implements Connection {
 
     @Override
     public void beginRequest() throws SQLException {
+        // (No need to check isClosed().)
         this.delegate().beginRequest();
     }
 
     @Override
     public void endRequest() throws SQLException {
+        // (No need to check isClosed().)
         this.delegate().endRequest();
     }
 

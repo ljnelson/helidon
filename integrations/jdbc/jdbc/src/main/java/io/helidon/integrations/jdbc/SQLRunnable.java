@@ -13,12 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.helidon.integrations.jta.jdbc;
+package io.helidon.integrations.jdbc;
 
 import java.sql.SQLException;
 
-interface SQLRunnable {
+/**
+ * A useful functional interface whose implementations can perform
+ * work that may throw a {@link SQLException}.
+ *
+ * @see #run()
+ */
+@FunctionalInterface
+public interface SQLRunnable {
 
-    void run() throws SQLException;
+    /**
+     * Performs work.
+     *
+     * @exception SQLException if a database access error occurs
+     */
+    public void run() throws SQLException;
 
 }

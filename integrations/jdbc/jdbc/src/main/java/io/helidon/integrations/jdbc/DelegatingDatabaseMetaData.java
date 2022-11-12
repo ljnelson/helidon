@@ -32,13 +32,22 @@ public class DelegatingDatabaseMetaData implements DatabaseMetaData {
 
     private final DatabaseMetaData delegate;
 
-    protected DelegatingDatabaseMetaData(DatabaseMetaData delegate) {
-        this(null, delegate);
-    }
-
+    /**
+     * Creates a new {@link DelegatingDatabaseMetaData}.
+     *
+     * @param connection the {@link Connection} that will be returned
+     * by the {@link #getConnection()} method; must not be {@code
+     * null}
+     *
+     * @param delegate the {@link DatabaseMetaData} to which all
+     * operations will be delegated; must not be {@code null}
+     *
+     * @exception NullPointerException if either {@code connection} or
+     * {@code delegate} is {@code null}
+     */
     protected DelegatingDatabaseMetaData(Connection connection, DatabaseMetaData delegate) {
         super();
-        this.connection = connection;
+        this.connection = Objects.requireNonNull(connection, "connection");
         this.delegate = Objects.requireNonNull(delegate, "delegate");
     }
 

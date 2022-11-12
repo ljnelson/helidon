@@ -55,11 +55,31 @@ public class DelegatingPreparedStatement<S extends PreparedStatement> extends De
      * @param delegate the {@link PreparedStatement} instance to which
      * all operations will be delegated; must not be {@code null}
      *
+     * @param closeable the initial value for this {@link
+     * DelegatingPreparedStatement}'s {@linkplain #isCloseable()
+     * closeable} status
+     *
+     * @param strictClosedChecking if {@code true}, then <em>this</em>
+     * {@link DelegatingPreparedStatement}'s {@link #isClosed()}
+     * method will be invoked before every operation that cannot take
+     * place on a closed statement, and, if it returns {@code true},
+     * the operation in question will fail with a {@link SQLException}
      * @exception NullPointerException if either argument is {@code
      * null}
+     *
+     * @see DelegatingStatement#isCloseable()
+     *
+     * @see DelegatingStatement#setCloseable(boolean)
+     *
+     * @see DelegatingStatement#close()
+     *
+     * @see DelegatingStatement#isClosed()
      */
-    public DelegatingPreparedStatement(Connection connection, S delegate) {
-        super(connection, delegate);
+    public DelegatingPreparedStatement(Connection connection,
+                                       S delegate,
+                                       boolean closeable,
+                                       boolean strictClosedChecking) {
+        super(connection, delegate, closeable, strictClosedChecking);
     }
 
     @Override

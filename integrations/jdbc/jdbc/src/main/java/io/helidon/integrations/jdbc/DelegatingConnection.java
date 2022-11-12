@@ -57,6 +57,15 @@ public class DelegatingConnection implements Connection {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
     }
 
+    /**
+     * Returns this {@link DelegatingConnection}'s underlying {@link
+     * Connection}.
+     *
+     * <p>This method never returns {@code null}.</p>
+     *
+     * @return this {@link DelegatingConnection}'s underlying {@link
+     * Connection}; never {@code null}
+     */
     protected final Connection delegate() {
         return this.delegate;
     }
@@ -64,19 +73,28 @@ public class DelegatingConnection implements Connection {
     @Override
     public Statement createStatement() throws SQLException {
         // NOTE
-        return new DelegatingStatement<>(this, this.delegate().createStatement());
+        return new DelegatingStatement<>(this,
+                                         this.delegate().createStatement(),
+                                         true,
+                                         true);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
         // NOTE
-        return new DelegatingPreparedStatement<>(this, this.delegate().prepareStatement(sql));
+        return new DelegatingPreparedStatement<>(this,
+                                                 this.delegate().prepareStatement(sql),
+                                                 true,
+                                                 true);
     }
 
     @Override
     public CallableStatement prepareCall(String sql) throws SQLException {
         // NOTE
-        return new DelegatingCallableStatement(this, this.delegate().prepareCall(sql));
+        return new DelegatingCallableStatement(this,
+                                               this.delegate().prepareCall(sql),
+                                               true,
+                                               true);
     }
 
     @Override
@@ -164,20 +182,28 @@ public class DelegatingConnection implements Connection {
     @Override
     public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
         // NOTE
-        return new DelegatingStatement<>(this, this.delegate().createStatement(resultSetType, resultSetConcurrency));
+        return new DelegatingStatement<>(this,
+                                         this.delegate().createStatement(resultSetType, resultSetConcurrency),
+                                         true,
+                                         true);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
         // NOTE
         return new DelegatingPreparedStatement<>(this,
-                                                 this.delegate().prepareStatement(sql, resultSetType, resultSetConcurrency));
+                                                 this.delegate().prepareStatement(sql, resultSetType, resultSetConcurrency),
+                                                 true,
+                                                 true);
     }
 
     @Override
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
         // NOTE
-        return new DelegatingCallableStatement(this, this.delegate().prepareCall(sql, resultSetType, resultSetConcurrency));
+        return new DelegatingCallableStatement(this,
+                                               this.delegate().prepareCall(sql, resultSetType, resultSetConcurrency),
+                                               true,
+                                               true);
     }
 
     @Override
@@ -225,19 +251,23 @@ public class DelegatingConnection implements Connection {
         // NOTE
         return new DelegatingStatement<>(this,
                                          this.delegate().createStatement(resultSetType,
-                                                                       resultSetConcurrency,
-                                                                       resultSetHoldability));
+                                                                         resultSetConcurrency,
+                                                                         resultSetHoldability),
+                                         true,
+                                         true);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
-      throws SQLException {
+        throws SQLException {
         // NOTE
         return new DelegatingPreparedStatement<>(this,
                                                  this.delegate().prepareStatement(sql,
-                                                                                resultSetType,
-                                                                                resultSetConcurrency,
-                                                                                resultSetHoldability));
+                                                                                  resultSetType,
+                                                                                  resultSetConcurrency,
+                                                                                  resultSetHoldability),
+                                                 true,
+                                                 true);
     }
 
     @Override
@@ -246,27 +276,38 @@ public class DelegatingConnection implements Connection {
         // NOTE
         return new DelegatingCallableStatement(this,
                                                this.delegate().prepareCall(sql,
-                                                                         resultSetType,
-                                                                         resultSetConcurrency,
-                                                                         resultSetHoldability));
+                                                                           resultSetType,
+                                                                           resultSetConcurrency,
+                                                                           resultSetHoldability),
+                                               true,
+                                               true);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int autoGeneratedKeys) throws SQLException {
         // NOTE
-        return new DelegatingPreparedStatement<>(this, this.delegate().prepareStatement(sql, autoGeneratedKeys));
+        return new DelegatingPreparedStatement<>(this,
+                                                 this.delegate().prepareStatement(sql, autoGeneratedKeys),
+                                                 true,
+                                                 true);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int[] columnIndexes) throws SQLException {
         // NOTE
-        return new DelegatingPreparedStatement<>(this, this.delegate().prepareStatement(sql, columnIndexes));
+        return new DelegatingPreparedStatement<>(this,
+                                                 this.delegate().prepareStatement(sql, columnIndexes),
+                                                 true,
+                                                 true);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, String[] columnNames) throws SQLException {
         // NOTE
-        return new DelegatingPreparedStatement<>(this, this.delegate().prepareStatement(sql, columnNames));
+        return new DelegatingPreparedStatement<>(this,
+                                                 this.delegate().prepareStatement(sql, columnNames),
+                                                 true,
+                                                 true);
     }
 
     @Override

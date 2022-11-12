@@ -164,7 +164,7 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * #isCloseable() is closeable}.
      *
      * <p>Overrides should normally call {@code super.close()} as part
-     * of their implementation.<p>
+     * of their implementation.</p>
      *
      * @exception SQLException if an error occurs
      *
@@ -664,19 +664,6 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
 
     // (Invoked by method reference only.)
     private static void noop() {
-
-    }
-
-
-    /*
-     * Inner and nested classes.
-     */
-
-
-    @FunctionalInterface
-    private interface SQLRunnable {
-
-        void run() throws SQLException;
 
     }
 

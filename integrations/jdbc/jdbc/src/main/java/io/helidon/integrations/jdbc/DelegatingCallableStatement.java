@@ -51,11 +51,34 @@ public class DelegatingCallableStatement extends DelegatingPreparedStatement<Cal
      * @param delegate the {@link CallableStatement} instance to which
      * all operations will be delegated; must not be {@code null}
      *
+     * @param closeable the initial value for this {@link
+     * DelegatingCallableStatement}'s {@linkplain #isCloseable()
+     * closeable} status
+     *
+     * @param strictClosedChecking if {@code true}, then <em>this</em>
+     * {@link DelegatingCallableStatement}'s {@link #isClosed()}
+     * method will be invoked before every operation that cannot take
+     * place on a closed statement, and, if it returns {@code true},
+     * the operation in question will fail with a {@link SQLException}
      * @exception NullPointerException if either argument is {@code
      * null}
+     *
+     * @see DelegatingStatement#isCloseable()
+     *
+     * @see DelegatingStatement#setCloseable(boolean)
+     *
+     * @see DelegatingStatement#close()
+     *
+     * @see DelegatingStatement#isClosed()
+     *
+     * @exception NullPointerException if either {@code connection} or
+     * {@code delegate} is {@code null}
      */
-    public DelegatingCallableStatement(Connection connection, CallableStatement delegate) {
-        super(connection, delegate);
+    public DelegatingCallableStatement(Connection connection,
+                                       CallableStatement delegate,
+                                       boolean closeable,
+                                       boolean strictClosedChecking) {
+        super(connection, delegate, closeable, strictClosedChecking);
     }
 
     @Override

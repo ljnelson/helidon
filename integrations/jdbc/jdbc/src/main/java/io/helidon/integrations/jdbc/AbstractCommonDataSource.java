@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Oracle and/or its affiliates.
+ * Copyright (c) 2021, 2022 Oracle and/or its affiliates.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,9 @@ public abstract class AbstractCommonDataSource implements CommonDataSource {
 
     private PrintWriter logWriter;
 
+    /**
+     * Creates a new {@link AbstractCommonDataSource}.
+     */
     protected AbstractCommonDataSource() {
         super();
     }
@@ -42,7 +45,7 @@ public abstract class AbstractCommonDataSource implements CommonDataSource {
     }
 
     @Override
-    public void setLogWriter(final PrintWriter logWriter) throws SQLException {
+    public void setLogWriter(PrintWriter logWriter) throws SQLException {
         this.logWriter = logWriter;
     }
 
@@ -52,7 +55,7 @@ public abstract class AbstractCommonDataSource implements CommonDataSource {
     }
 
     @Override
-    public void setLoginTimeout(final int loginTimeout) throws SQLException {
+    public void setLoginTimeout(int loginTimeout) throws SQLException {
         this.loginTimeout = loginTimeout;
     }
 

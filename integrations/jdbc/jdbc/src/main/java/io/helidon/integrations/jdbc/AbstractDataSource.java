@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Oracle and/or its affiliates.
+ * Copyright (c) 2021, 2022 Oracle and/or its affiliates.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,17 +24,20 @@ import javax.sql.DataSource;
  */
 public abstract class AbstractDataSource extends AbstractCommonDataSource implements DataSource {
 
+    /**
+     * Creates a new {@link AbstractDataSource}.
+     */
     protected AbstractDataSource() {
         super();
     }
 
     @Override
-    public boolean isWrapperFor(final Class<?> iface) throws SQLException {
+    public boolean isWrapperFor(Class<?> iface) throws SQLException {
         return iface != null && iface.isInstance(this);
     }
 
     @Override
-    public <T> T unwrap(final Class<T> iface) throws SQLException {
+    public <T> T unwrap(Class<T> iface) throws SQLException {
         return iface.cast(this);
     }
 

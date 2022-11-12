@@ -48,10 +48,18 @@ public class DelegatingResultSet implements ResultSet {
 
     private final ResultSet delegate;
 
-    protected DelegatingResultSet(ResultSet delegate) {
-        this(null, delegate);
-    }
-
+    /**
+     * Creates a new {@link DelegatingResultSet}.
+     *
+     * @param statement the {@link Statement} that will be returned by
+     * the {@link #getStatement()} method; may be {@code null}
+     *
+     * @param delegate the {@link ResultSet} to which all operations
+     * will be delegated; must not be {@code null}
+     *
+     * @exception NullPointerException if {@code delegate} is {@code
+     * null}
+     */
     protected DelegatingResultSet(Statement statement, ResultSet delegate) {
         super();
         this.statement = statement;

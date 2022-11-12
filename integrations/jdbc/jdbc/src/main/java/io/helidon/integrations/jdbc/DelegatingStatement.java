@@ -18,6 +18,7 @@ package io.helidon.integrations.jdbc;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.Objects;
@@ -33,6 +34,10 @@ public class DelegatingStatement<S extends Statement> implements Statement {
 
     private final S delegate;
 
+    private final SQLRunnable closedChecker;
+
+    private volatile boolean closeable;
+
     /**
      * Creates a new {@link DelegatingStatement}.
      *
@@ -42,19 +47,119 @@ public class DelegatingStatement<S extends Statement> implements Statement {
      * @param delegate the {@link Statement} instance to which all
      * operations will be delegated; must not be {@code null}
      *
-     * @exception NullPointerException if either argument is {@code
-     * null}
+     * @param closeable the initial value for this {@link
+     * DelegatingStatement}'s {@linkplain #isCloseable() closeable}
+     * status
+     *
+     * @param strictClosedChecking if {@code true}, then <em>this</em>
+     * {@link DelegatingStatement}'s {@link #isClosed()} method will
+     * be invoked before every operation that cannot take place on a
+     * closed statement, and, if it returns {@code true}, the
+     * operation in question will fail with a {@link SQLException}
+     *
+     * @exception NullPointerException if either {@code connection} or
+     * {@code delegate} is {@code null}
      *
      * @see #getConnection()
      */
-    public DelegatingStatement(Connection connection, S delegate) {
+    public DelegatingStatement(Connection connection,
+                               S delegate,
+                               boolean closeable,
+                               boolean strictClosedChecking) {
         super();
         this.connection = Objects.requireNonNull(connection, "connection");
         this.delegate = Objects.requireNonNull(delegate, "delegate");
+        this.closeable = closeable;
+        this.closedChecker = strictClosedChecking ? this::failWhenClosed : DelegatingStatement::noop;
     }
 
+    /**
+     * Returns the {@link Statement} to which all operations will be
+     * delegated.
+     *
+     * <p>This method never returns {@code null}.</p>
+     *
+     * @return the {@link Statement} to which all operations will be
+     * delegated; never {@code null}
+     */
     protected final S delegate() {
         return this.delegate;
+    }
+
+    /**
+     * Returns {@code true} if a call to {@link #close()} will
+     * actually close this {@link DelegatingStatement}.
+     *
+     * <p>This method returns {@code true} when {@link
+     * #setCloseable(boolean)} has been called with a value of {@code
+     * true} and the {@link #isClosed()} method returns {@code
+     * false}.</p>
+     *
+     * @return {@code true} if a call to {@link #close()} will
+     * actually close this {@link DelegatingStatement}; {@code false}
+     * in all other cases
+     *
+     * @exception SQLException if {@link #isClosed()} throws a {@link
+     * SQLException}
+     *
+     * @see #setCloseable(boolean)
+     *
+     * @see #close()
+     *
+     * @see #isClosed()
+     */
+    public final boolean isCloseable() throws SQLException {
+        return this.closeable && !this.isClosed();
+    }
+
+    /**
+     * Sets the closeable status of this {@link DelegatingStatement}.
+     *
+     * <p>Note that calling this method with a value of {@code true}
+     * does not necessarily mean that the {@link #isCloseable()}
+     * method will subsequently return {@code true}, since the {@link
+     * #isClosed()} method may return {@code true}.</p>
+     *
+     * @param closeable whether or not a call to {@link #close()} will
+     * actually close this {@link DelegatingStatement}
+     *
+     * @see #isCloseable()
+     *
+     * @see #close()
+     *
+     * @see Statement#close()
+     *
+     * @see #isClosed()
+     */
+    public final void setCloseable(boolean closeable) {
+        // this.checkOpen(); // Deliberately omitted.
+        this.closeable = closeable;
+    }
+
+    @Override
+    public boolean isClosed() throws SQLException {
+        return this.delegate().isClosed();
+    }
+
+    /**
+     * Overrides the {@link Statement#close()} method so that when it
+     * is invoked this {@link DelegatingStatement} is {@linkplain
+     * Statement#close() closed} only if it {@linkplain #isCloseable()
+     * is closeable}.
+     *
+     * <p>Overrides should normally call {@code super.close()} as part
+     * of their implementation.</p>
+     *
+     * @exception SQLException if an error occurs
+     *
+     * @see #isCloseable()
+     */
+    @Override
+    public void close() throws SQLException {
+        // NOTE
+        if (this.isCloseable()) {
+            this.delegate().close();
+        }
     }
 
     @Override
@@ -66,11 +171,6 @@ public class DelegatingStatement<S extends Statement> implements Statement {
     @Override
     public int executeUpdate(String sql) throws SQLException {
         return this.delegate().executeUpdate(sql);
-    }
-
-    @Override
-    public void close() throws SQLException {
-        this.delegate().close();
     }
 
     @Override
@@ -196,17 +296,18 @@ public class DelegatingStatement<S extends Statement> implements Statement {
 
     /**
      * Returns the {@link Connection} {@linkplain
-     * #DelegatingStatement(Connection, Statement) supplied at
-     * construction time}.
+     * #DelegatingStatement(Connection, Statement, boolean, boolean)
+     * supplied at construction time}.
      *
      * @return the {@link Connection} {@linkplain
-     * #DelegatingStatement(Connection, Statement) supplied at
-     * construction time}; never {@code null}
+     * #DelegatingStatement(Connection, Statement, boolean, boolean)
+     * supplied at construction time}; never {@code null}
      *
      * @exception SQLException not thrown by the default
      * implementation of this method
      *
-     * @see #DelegatingStatement(Connection, Statement)
+     * @see #DelegatingStatement(Connection, Statement, boolean,
+     * boolean)
      */
     @Override
     public Connection getConnection() throws SQLException {
@@ -258,11 +359,6 @@ public class DelegatingStatement<S extends Statement> implements Statement {
     @Override
     public int getResultSetHoldability() throws SQLException {
         return this.delegate().getResultSetHoldability();
-    }
-
-    @Override
-    public boolean isClosed() throws SQLException {
-        return this.delegate().isClosed();
     }
 
     @Override
@@ -353,6 +449,48 @@ public class DelegatingStatement<S extends Statement> implements Statement {
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
         return iface.isInstance(this) || this.delegate().isWrapperFor(iface);
+    }
+
+    /**
+     * Ensures this {@link DelegatingStatement} is {@linkplain
+     * #isClosed() not closed}, if {@linkplain
+     * #DelegatingStatement(Connection, Statement, boolean, boolean)
+     * strict closed checking was enabled at construction time}.
+     *
+     * <p>If a subclass overrides the {@link #isClosed()} method, the
+     * override must not call this method or undefined behavior, such
+     * as an infinite loop, may result.</p>
+     *
+     * <p>This method is intended for advanced use cases only and
+     * almost all users of this class will have no reason to call
+     * it.</p>
+     *
+     * @exception SQLException if this {@link DelegatingStatement} was
+     * {@linkplain #DelegatingStatement(Connection, Statement,
+     * boolean, boolean) created with strict closed checking enabled}
+     * and an invocation of the {@link #isClosed()} method returns
+     * {@code true}, or if some other database access error occurs
+     */
+    protected final void checkOpen() throws SQLException {
+        this.closedChecker.run();
+    }
+
+    // (Invoked by method reference only.)
+    private void failWhenClosed() throws SQLException {
+        if (this.isClosed()) {
+            throw new SQLNonTransientConnectionException("Statement is closed", "08000");
+        }
+    }
+
+
+    /*
+     * Static methods.
+     */
+
+
+    // (Invoked by method reference only.)
+    private static void noop() {
+
     }
 
 }

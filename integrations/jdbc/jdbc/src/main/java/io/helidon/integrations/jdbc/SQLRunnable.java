@@ -31,6 +31,6 @@ public interface SQLRunnable {
      *
      * @exception SQLException if a database access error occurs
      */
-    public void run() throws SQLException;
+    void run() throws SQLException;
 
 }

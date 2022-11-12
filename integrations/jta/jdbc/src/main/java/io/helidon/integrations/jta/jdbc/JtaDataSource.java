@@ -614,12 +614,16 @@ public final class JtaDataSource extends AbstractDataSource implements Synchroni
      */
     static final class TransactionSpecificConnection extends ConditionallyCloseableConnection {
 
+        private static final boolean STRICT_CLOSED_CHECKING = Boolean.getBoolean("helidon.jta.strict.closed.checking");
+
         private final boolean oldAutoCommit;
 
         private boolean closeCalled;
 
         TransactionSpecificConnection(final Connection delegate) throws SQLException {
-            super(delegate, false /* not closeable */);
+            super(delegate,
+                  false, // not closeable
+                  STRICT_CLOSED_CHECKING);
             this.oldAutoCommit = this.getAutoCommit();
             this.setAutoCommit(false);
         }

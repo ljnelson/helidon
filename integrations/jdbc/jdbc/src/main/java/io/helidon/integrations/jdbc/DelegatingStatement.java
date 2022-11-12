@@ -24,7 +24,8 @@ import java.sql.Statement;
 import java.util.Objects;
 
 /**
- * A {@link Statement} that delegates to another {@link Statement}.
+ * A JDBC 4.3-compliant {@link Statement} that delegates to another
+ * JDBC 4.3-compliant {@link Statement}.
  *
  * @param <S> the type of the {@link Statement} subclass
  */

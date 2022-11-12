@@ -37,7 +37,8 @@ import java.util.Properties;
 import java.util.concurrent.Executor;
 
 /**
- * A {@link Connection} that delegates to another {@link Connection}.
+ * A JDBC 4.3-compliant {@link Connection} that delegates to another
+ * JDBC 4.3-compliant {@link Connection}.
  */
 public class DelegatingConnection implements Connection {
 

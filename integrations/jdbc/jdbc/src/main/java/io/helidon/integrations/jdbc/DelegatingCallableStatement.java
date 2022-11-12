@@ -37,8 +37,8 @@ import java.util.Calendar;
 import java.util.Map;
 
 /**
- * A {@link CallableStatement} that delegates to another {@link
- * CallableStatement}.
+ * A JDBC 4.3-compliant {@link CallableStatement} that delegates to
+ * another JDBC 4.3-compliant {@link CallableStatement}.
  */
 public class DelegatingCallableStatement extends DelegatingPreparedStatement<CallableStatement> implements CallableStatement {
 

@@ -39,8 +39,8 @@ import java.sql.Timestamp;
 import java.util.Calendar;
 
 /**
- * A {@link PreparedStatement} that delegates to another {@link
- * PreparedStatement}.
+ * A JDBC 4.3-compliant {@link PreparedStatement} that delegates to
+ * another JDBC 4.3-compliant {@link PreparedStatement}.
  *
  * @param <S> the type of the {@link PreparedStatement} subclass
  */

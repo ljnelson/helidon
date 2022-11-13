@@ -32,6 +32,7 @@ import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 
 import io.helidon.integrations.jdbc.SQLRunnable;
+import io.helidon.integrations.jdbc.UncheckedSQLException;
 
 import static javax.transaction.xa.XAException.XAER_DUPID;
 import static javax.transaction.xa.XAException.XAER_INVAL;

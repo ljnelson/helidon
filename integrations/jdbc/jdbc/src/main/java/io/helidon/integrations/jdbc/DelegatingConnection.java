@@ -67,7 +67,7 @@ public class DelegatingConnection implements Connection {
      * @return this {@link DelegatingConnection}'s underlying {@link
      * Connection}; never {@code null}
      */
-    protected final Connection delegate() {
+    public final Connection delegate() {
         return this.delegate;
     }
 

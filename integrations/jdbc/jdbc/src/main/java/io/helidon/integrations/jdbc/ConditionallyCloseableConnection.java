@@ -628,15 +628,14 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * Ensures this {@link ConditionallyCloseableConnection} is
      * {@linkplain #isClosed() not closed}, if {@linkplain
      * #ConditionallyCloseableConnection(Connection, boolean, boolean)
-     * strict closed checking was enabled at construction time}.
+     * strict closed checking was enabled at construction time}, or
+     * simply returns if {@linkplain
+     * #ConditionallyCloseableConnection(Connection, boolean, boolean)
+     * strict closed checking was <em>not</em> enabled at construction
+     * time}.
      *
-     * <p>If a subclass overrides the {@link #isClosed()} method, the
-     * override must not call this method or undefined behavior, such
-     * as an infinite loop, may result.</p>
-     *
-     * <p>This method is intended for advanced use cases only and
-     * almost all users of this class will have no reason to call
-     * it.</p>
+     * <p>This method is called from almost every method in this
+     * class.</p>
      *
      * @exception SQLException if this {@link
      * ConditionallyCloseableConnection} was {@linkplain
@@ -645,12 +644,31 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * of the {@link #isClosed()} method returns {@code true}, or if
      * some other database access error occurs
      */
-    protected final void checkOpen() throws SQLException {
+    private void checkOpen() throws SQLException {
         this.closedChecker.run();
     }
 
-    // (Invoked by method reference only.)
-    private void failWhenClosed() throws SQLException {
+    /**
+     * Invokes the {@link #isClosed()} method, and, if it returns
+     * {@code true}, throws a new {@link SQLException} indicating that
+     * the operation cannot proceed.
+     *
+     * <p>If this {@link ConditionallyCloseableConnection} was
+     * {@linkplain #ConditionallyCloseableConnection(Connection,
+     * boolean, boolean) created with strict closed checking enabled},
+     * then this method will be called by the {@link #checkOpen()}
+     * method.  Otherwise this method is not called internally by
+     * default implementations of the methods in the {@link
+     * ConditionallyCloseableConnection} class.  Subclasses may call
+     * this method directly for any reason.</p>
+     *
+     * <p>An override of this method must not call {@link
+     * #checkOpen()} or undefined behavior may result.</p>
+     *
+     * @exception SQLException when an invocation of the {@link
+     * #isClosed()} method returns {@code true}
+     */
+    protected final void failWhenClosed() throws SQLException {
         if (this.isClosed()) {
             throw new SQLNonTransientConnectionException("Connection is closed", "08000");
         }

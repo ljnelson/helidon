@@ -200,7 +200,7 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      *
      * @see #isClosed()
      */
-    public final boolean isCloseable() throws SQLException {
+    public boolean isCloseable() throws SQLException {
         // this.checkOpen(); // Deliberately omitted.
         return this.closeable && !this.isClosed();
     }
@@ -225,7 +225,7 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      *
      * @see #isClosed()
      */
-    public final void setCloseable(boolean closeable) {
+    public void setCloseable(boolean closeable) {
         // this.checkOpen(); // Deliberately omitted.
         this.closeable = closeable;
     }

@@ -49,7 +49,7 @@ final class TestConditionallyCloseableConnection {
     @SuppressWarnings("try")
     @Test
     final void testIsCloseable() throws SQLException {
-        try (final ConditionallyCloseableConnection c = new ConditionallyCloseableConnection(this.ds.getConnection());
+        try (final ConditionallyCloseableConnection c = new ConditionallyCloseableConnection(this.ds.getConnection(), true, true);
              final Statement s = c.createStatement();
              final ResultSet rs = s.executeQuery("SHOW TABLES")) {
             assertThat(rs.next(), is(false)); // no tables
@@ -85,7 +85,7 @@ final class TestConditionallyCloseableConnection {
             // However it is unclear whether a Statement constitutes a
             // "JDBC resource" in this context. H2 does not close open
             // Statements or ResultSets when their creating Connection
-            // is closed.
+            // is closed. Neither does PostgreSQL.
             assertThat(s.isClosed(), is(false));
             assertThat(rs.isClosed(), is(false));
         }

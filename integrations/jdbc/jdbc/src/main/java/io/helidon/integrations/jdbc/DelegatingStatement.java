@@ -71,7 +71,7 @@ public class DelegatingStatement<S extends Statement> implements Statement {
         this.connection = Objects.requireNonNull(connection, "connection");
         this.delegate = Objects.requireNonNull(delegate, "delegate");
         this.closeable = closeable;
-        this.closedChecker = strictClosedChecking ? this::failWhenClosed : DelegatingStatement::noop;
+        this.closedChecker = strictClosedChecking ? this::failWhenClosed : DelegatingStatement::doNothing;
     }
 
     /**
@@ -165,133 +165,159 @@ public class DelegatingStatement<S extends Statement> implements Statement {
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
+        checkOpen();
         // NOTE
-        return new DelegatingResultSet(this, this.delegate().executeQuery(sql));
+        return new DelegatingResultSet(this, this.delegate().executeQuery(sql), true, true);
     }
 
     @Override
     public int executeUpdate(String sql) throws SQLException {
+        checkOpen();
         return this.delegate().executeUpdate(sql);
     }
 
     @Override
     public int getMaxFieldSize() throws SQLException {
+        checkOpen();
         return this.delegate().getMaxFieldSize();
     }
 
     @Override
     public void setMaxFieldSize(int max) throws SQLException {
+        checkOpen();
         this.delegate().setMaxFieldSize(max);
     }
 
     @Override
     public int getMaxRows() throws SQLException {
+        checkOpen();
         return this.delegate().getMaxRows();
     }
 
     @Override
     public void setMaxRows(int max) throws SQLException {
+        checkOpen();
         this.delegate().setMaxRows(max);
     }
 
     @Override
     public void setEscapeProcessing(boolean enable) throws SQLException {
+        checkOpen();
         this.delegate().setEscapeProcessing(enable);
     }
 
     @Override
     public int getQueryTimeout() throws SQLException {
+        checkOpen();
         return this.delegate().getQueryTimeout();
     }
 
     @Override
     public void setQueryTimeout(int seconds) throws SQLException {
+        checkOpen();
         this.delegate().setQueryTimeout(seconds);
     }
 
     @Override
     public void cancel() throws SQLException {
+        checkOpen();
         this.delegate().cancel();
     }
 
     @Override
     public SQLWarning getWarnings() throws SQLException {
+        checkOpen();
         return this.delegate().getWarnings();
     }
 
     @Override
     public void clearWarnings() throws SQLException {
+        checkOpen();
         this.delegate().clearWarnings();
     }
 
     @Override
     public void setCursorName(String name) throws SQLException {
+        checkOpen();
         this.delegate().setCursorName(name);
     }
 
     @Override
     public boolean execute(String sql) throws SQLException {
+        checkOpen();
         return this.delegate().execute(sql);
     }
 
     @Override
     public ResultSet getResultSet() throws SQLException {
+        checkOpen();
         // NOTE
-        return new DelegatingResultSet(this, this.delegate().getResultSet());
+        return new DelegatingResultSet(this, this.delegate().getResultSet(), true, true);
     }
 
     @Override
     public int getUpdateCount() throws SQLException {
+        checkOpen();
         return this.delegate().getUpdateCount();
     }
 
     @Override
     public boolean getMoreResults() throws SQLException {
+        checkOpen();
         return this.delegate().getMoreResults();
     }
 
     @Override
     public void setFetchDirection(int direction) throws SQLException {
+        checkOpen();
         this.delegate().setFetchDirection(direction);
     }
 
     @Override
     public int getFetchDirection() throws SQLException {
+        checkOpen();
         return this.delegate().getFetchDirection();
     }
 
     @Override
     public void setFetchSize(int rows) throws SQLException {
+        checkOpen();
         this.delegate().setFetchSize(rows);
     }
 
     @Override
     public int getFetchSize() throws SQLException {
+        checkOpen();
         return this.delegate().getFetchSize();
     }
 
     @Override
     public int getResultSetConcurrency() throws SQLException {
+        checkOpen();
         return this.delegate().getResultSetConcurrency();
     }
 
     @Override
     public int getResultSetType() throws SQLException {
+        checkOpen();
         return this.delegate().getResultSetType();
     }
 
     @Override
     public void addBatch(String sql) throws SQLException {
+        checkOpen();
         this.delegate().addBatch(sql);
     }
 
     @Override
     public void clearBatch() throws SQLException {
+        checkOpen();
         this.delegate().clearBatch();
     }
 
     @Override
     public int[] executeBatch() throws SQLException {
+        checkOpen();
         return this.delegate().executeBatch();
     }
 
@@ -313,142 +339,170 @@ public class DelegatingStatement<S extends Statement> implements Statement {
     @Override
     public Connection getConnection() throws SQLException {
         // NOTE
+        checkOpen();
         return this.connection;
     }
 
     @Override
     public boolean getMoreResults(int current) throws SQLException {
+        checkOpen();
         return this.delegate().getMoreResults(current);
     }
 
     @Override
     public ResultSet getGeneratedKeys() throws SQLException {
+        checkOpen();
         // NOTE
-        return new DelegatingResultSet(this, this.delegate().getGeneratedKeys());
+        return new DelegatingResultSet(this, this.delegate().getGeneratedKeys(), true, true);
     }
 
     @Override
     public int executeUpdate(String sql, int autoGeneratedKeys) throws SQLException {
+        checkOpen();
         return this.delegate().executeUpdate(sql, autoGeneratedKeys);
     }
 
     @Override
     public int executeUpdate(String sql, int[] columnIndexes) throws SQLException {
+        checkOpen();
         return this.delegate().executeUpdate(sql, columnIndexes);
     }
 
     @Override
     public int executeUpdate(String sql, String[] columnNames) throws SQLException {
+        checkOpen();
         return this.delegate().executeUpdate(sql, columnNames);
     }
 
     @Override
     public boolean execute(String sql, int autoGeneratedKeys) throws SQLException {
+        checkOpen();
         return this.delegate().execute(sql, autoGeneratedKeys);
     }
 
     @Override
     public boolean execute(String sql, int[] columnIndexes) throws SQLException {
+        checkOpen();
         return this.delegate().execute(sql, columnIndexes);
     }
 
     @Override
     public boolean execute(String sql, String[] columnNames) throws SQLException {
+        checkOpen();
         return this.delegate().execute(sql, columnNames);
     }
 
     @Override
     public int getResultSetHoldability() throws SQLException {
+        checkOpen();
         return this.delegate().getResultSetHoldability();
     }
 
     @Override
     public void setPoolable(boolean poolable) throws SQLException {
+        checkOpen();
         this.delegate().setPoolable(poolable);
     }
 
     @Override
     public boolean isPoolable() throws SQLException {
+        checkOpen();
         return this.delegate().isPoolable();
     }
 
     @Override
     public void closeOnCompletion() throws SQLException {
+        checkOpen();
         this.delegate().closeOnCompletion();
     }
 
     @Override
     public boolean isCloseOnCompletion() throws SQLException {
+        checkOpen();
         return this.delegate().isCloseOnCompletion();
     }
 
     @Override
     public long getLargeUpdateCount() throws SQLException {
+        checkOpen();
         return this.delegate().getLargeUpdateCount();
     }
 
     @Override
     public void setLargeMaxRows(long max) throws SQLException {
+        checkOpen();
         this.delegate().setLargeMaxRows(max);
     }
 
     @Override
     public long getLargeMaxRows() throws SQLException {
+        checkOpen();
         return this.delegate().getLargeMaxRows();
     }
 
     @Override
     public long[] executeLargeBatch() throws SQLException {
+        checkOpen();
         return this.delegate().executeLargeBatch();
     }
 
     @Override
     public long executeLargeUpdate(String sql) throws SQLException {
+        checkOpen();
         return this.delegate().executeLargeUpdate(sql);
     }
 
     @Override
     public long executeLargeUpdate(String sql, int autoGeneratedKeys) throws SQLException {
+        checkOpen();
         return this.delegate().executeLargeUpdate(sql, autoGeneratedKeys);
     }
 
     @Override
     public long executeLargeUpdate(String sql, int[] columnIndexes) throws SQLException {
+        checkOpen();
         return this.delegate().executeLargeUpdate(sql, columnIndexes);
     }
 
     @Override
     public long executeLargeUpdate(String sql, String[] columnNames) throws SQLException {
+        checkOpen();
         return this.delegate().executeLargeUpdate(sql, columnNames);
     }
 
     @Override
     public String enquoteLiteral(String val) throws SQLException {
+        checkOpen();
         return this.delegate().enquoteLiteral(val);
     }
 
     @Override
     public String enquoteIdentifier(String identifier, boolean alwaysQuote) throws SQLException {
+        checkOpen();
         return this.delegate().enquoteIdentifier(identifier, alwaysQuote);
     }
 
     @Override
     public boolean isSimpleIdentifier(String identifier) throws SQLException {
+        checkOpen();
         return this.delegate().isSimpleIdentifier(identifier);
     }
 
     @Override
     public String enquoteNCharLiteral(String val) throws SQLException {
+        checkOpen();
         return this.delegate().enquoteNCharLiteral(val);
     }
 
     @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
+        // checkOpen(); // Deliberately omitted
         return iface.isInstance(this) ? iface.cast(this) : this.delegate().unwrap(iface);
     }
 
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
+        // checkOpen(); // Deliberately omitted
         return iface.isInstance(this) || this.delegate().isWrapperFor(iface);
     }
 
@@ -490,7 +544,7 @@ public class DelegatingStatement<S extends Statement> implements Statement {
 
 
     // (Invoked by method reference only.)
-    private static void noop() {
+    private static void doNothing() {
 
     }
 

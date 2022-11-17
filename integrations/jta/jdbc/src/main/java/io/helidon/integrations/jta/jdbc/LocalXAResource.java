@@ -51,6 +51,13 @@ import static javax.transaction.xa.XAResource.TMSUSPEND;
 import static javax.transaction.xa.XAResource.XA_OK;
 import static javax.transaction.xa.XAResource.XA_RDONLY;
 
+/**
+ * An {@link XAResource} that adapts an ordinary arbitrary {@link
+ * Connection} to the XA contract.
+ *
+ * <p>Instances of this class are safe for concurrent use by multiple
+ * threads.</p>
+ */
 final class LocalXAResource implements XAResource {
 
 
@@ -79,6 +86,18 @@ final class LocalXAResource implements XAResource {
      */
 
 
+    /**
+     * Creates a new {@link LocalXAResource}.
+     *
+     * @param connectionFunction a {@link Function} that accepts a
+     * {@link Xid} (supplied by the {@link #start(Xid, int)} method)
+     * and returns a {@link Connection} to associate with the global
+     * transaction; must not be {@code null}; must never return {@code
+     * null}; must be safe for concurrent use by multiple threads;
+     * will never be invoked with a {@code null} {@link Xid}
+     *
+     * @see #start(Xid, int)
+     */
     LocalXAResource(Function<? super Xid, ? extends Connection> connectionFunction) {
         super();
         this.connectionFunction = Objects.requireNonNull(connectionFunction, "connectionFunction");
@@ -137,7 +156,12 @@ final class LocalXAResource implements XAResource {
             throw new UncheckedXAException((XAException) new XAException(XAER_DUPID)
                                            .initCause(new IllegalArgumentException("xid: " + x + "; association: " + a)));
         }
-        Connection c = this.connectionFunction.apply(x);
+        Connection c;
+        try {
+            c = this.connectionFunction.apply(x);
+        } catch (RuntimeException e) {
+            throw new UncheckedXAException((XAException) new XAException(XAER_RMERR).initCause(e));
+        }
         if (c == null) {
             throw new UncheckedXAException((XAException) new XAException(XAER_RMERR)
                                            .initCause(new NullPointerException("connectionFunction.apply(" + x + ")")));
@@ -409,7 +433,7 @@ final class LocalXAResource implements XAResource {
             throw new UncheckedSQLException(e);
         }
         assert a.branchState() == Association.BranchState.NON_EXISTENT_TRANSACTION;
-        // Remove the association.
+        // Critically important: remove the association.
         return null;
     }
 
@@ -422,7 +446,7 @@ final class LocalXAResource implements XAResource {
             throw new UncheckedSQLException(sqlException);
         }
         assert a.branchState() == Association.BranchState.NON_EXISTENT_TRANSACTION;
-        // Remove the association.
+        // Critically important: remove the association.
         return null;
     }
 
@@ -434,6 +458,7 @@ final class LocalXAResource implements XAResource {
             if (a.connection().isReadOnly()) {
                 a = a.reset();
                 assert a.branchState() == Association.BranchState.NON_EXISTENT_TRANSACTION;
+                // Critically important: remove the association.
                 a = null;
             }
         } catch (SQLException e) {
@@ -451,6 +476,7 @@ final class LocalXAResource implements XAResource {
             throw new UncheckedSQLException(e);
         }
         assert a.branchState() == Association.BranchState.NON_EXISTENT_TRANSACTION;
+        // Critically important: remove the association.
         return null;
     }
 
@@ -696,7 +722,7 @@ final class LocalXAResource implements XAResource {
 
         private Association runAndReset(SQLRunnable r, SQLRunnable rollbackRunnable)
             throws SQLException {
-            Association a = null;
+            Association a;
             SQLException sqlException = null;
             try {
                 r.run();
@@ -713,6 +739,7 @@ final class LocalXAResource implements XAResource {
                 try {
                     a = this.reset(sqlException);
                 } catch (SQLException e) {
+                    a = null;
                     if (sqlException == null) {
                         sqlException = e;
                     } else if (sqlException != e) {

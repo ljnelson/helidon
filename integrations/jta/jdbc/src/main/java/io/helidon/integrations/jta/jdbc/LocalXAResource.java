@@ -33,6 +33,7 @@ import javax.transaction.xa.Xid;
 
 import io.helidon.integrations.jdbc.SQLRunnable;
 import io.helidon.integrations.jdbc.UncheckedSQLException;
+import io.helidon.integrations.jta.jdbc.SQLExceptionConverter.XARoutine;
 
 import static javax.transaction.xa.XAException.XAER_DUPID;
 import static javax.transaction.xa.XAException.XAER_INVAL;
@@ -80,7 +81,7 @@ final class LocalXAResource implements XAResource {
 
     private final Function<? super Xid, ? extends Connection> connectionFunction;
 
-    private final BiFunction<? super Routine, ? super SQLException, ? extends XAException> sqlExceptionConverter;
+    private final SQLExceptionConverter sqlExceptionConverter;
 
 
     /*
@@ -96,16 +97,15 @@ final class LocalXAResource implements XAResource {
      * never return {@code null}; must be safe for concurrent use by multiple threads; will never be invoked with a
      * {@code null} {@link Xid}
      *
-     * @param sqlExceptionConverter a {@link BiFunction} that accepts a {@link Routine} and a {@link SQLException} and
-     * that can convert the {@link SQLException} to an <em>appropriate</em> {@link XAException} following the rules
-     * defined by the <a href="https://pubs.opengroup.org/onlinepubs/009680699/toc.pdf">XA Specification</a> as
+     * @param sqlExceptionConverter a {@link SQLExceptionConverter} that accepts a {@link XARoutine} and a {@link
+     * SQLException} and converts the {@link SQLException} to an <em>appropriate</em> {@link XAException} following the
+     * rules defined by the <a href="https://pubs.opengroup.org/onlinepubs/009680699/toc.pdf">XA Specification</a> as
      * interpreted by the specification of the {@code javax.transaction.xa} package and its classes; may be {@code null}
      * in which case a default implementation will be used instead
      *
      * @see #start(Xid, int)
      */
-    LocalXAResource(Function<? super Xid, ? extends Connection> connectionFunction,
-                    BiFunction<? super Routine, ? super SQLException, ? extends XAException> sqlExceptionConverter) {
+    LocalXAResource(Function<? super Xid, ? extends Connection> connectionFunction, SQLExceptionConverter sqlExceptionConverter) {
         super();
         this.connectionFunction = Objects.requireNonNull(connectionFunction, "connectionFunction");
         this.sqlExceptionConverter = sqlExceptionConverter == null ? LocalXAResource::convert : sqlExceptionConverter;
@@ -141,7 +141,7 @@ final class LocalXAResource implements XAResource {
                 .initCause(new IllegalArgumentException("xid: " + xid + "; flags: " + flagsToString(flags)));
         }
 
-        this.computeAssociation(Routine.START, xid, remappingFunction);
+        this.computeAssociation(XARoutine.START, xid, remappingFunction);
 
         if (LOGGER.isLoggable(Level.FINER)) {
             LOGGER.exiting(this.getClass().getName(), "start");
@@ -196,7 +196,7 @@ final class LocalXAResource implements XAResource {
 
         // Any XAException thrown can have any error code. The transaction will be marked as rollback only. See
         // https://github.com/jbosstm/narayana/blob/8ccaf0f85c7a76c227941d26cc3aa3fa9f05b160/ArjunaJTA/jta/classes/com/arjuna/ats/internal/jta/transaction/arjunacore/TransactionImple.java#L978-L992.
-        this.computeAssociation(Routine.END, xid, remappingFunction);
+        this.computeAssociation(XARoutine.END, xid, remappingFunction);
 
         if (LOGGER.isLoggable(Level.FINER)) {
             LOGGER.exiting(this.getClass().getName(), "end");
@@ -213,7 +213,7 @@ final class LocalXAResource implements XAResource {
         // Any XAException thrown can have basically any error code. See
         // https://github.com/jbosstm/narayana/blob/c5f02d07edb34964b64341974ab689ea44536603/ArjunaJTA/jta/classes/com/arjuna/ats/internal/jta/resources/arjunacore/XAResourceRecord.java#L227-L261.
         Object association =
-            this.computeAssociation(Routine.PREPARE,
+            this.computeAssociation(XARoutine.PREPARE,
                                     xid,
                                     EnumSet.of(Association.BranchState.IDLE),
                                     LocalXAResource::prepare,
@@ -240,7 +240,7 @@ final class LocalXAResource implements XAResource {
         // https://github.com/jbosstm/narayana/blob/c5f02d07edb34964b64341974ab689ea44536603/ArjunaJTA/jta/classes/com/arjuna/ats/internal/jta/resources/arjunacore/XAResourceRecord.java#L512-L514
         // You can also see that XAER_RMFAIL does something different and is no different from XA_RETRY:
         // https://github.com/jbosstm/narayana/blob/c5f02d07edb34964b64341974ab689ea44536603/ArjunaJTA/jta/classes/com/arjuna/ats/internal/jta/resources/arjunacore/XAResourceRecord.java#L525-L534
-        this.computeAssociation(Routine.COMMIT,
+        this.computeAssociation(XARoutine.COMMIT,
                                 xid,
                                 EnumSet.of(Association.BranchState.IDLE,
                                            Association.BranchState.PREPARED),
@@ -263,7 +263,7 @@ final class LocalXAResource implements XAResource {
         // XAER_RMERR will put us in HEURISTIC_HAZARD
         // (https://github.com/jbosstm/narayana/blob/c5f02d07edb34964b64341974ab689ea44536603/ArjunaJTA/jta/classes/com/arjuna/ats/internal/jta/resources/arjunacore/XAResourceRecord.java#L379-L420).
         // Doing XAER_RMFAIL will put us in FINISH_ERROR.
-        this.computeAssociation(Routine.ROLLBACK,
+        this.computeAssociation(XARoutine.ROLLBACK,
                                 xid,
                                 EnumSet.of(Association.BranchState.IDLE,
                                            Association.BranchState.PREPARED,
@@ -283,7 +283,7 @@ final class LocalXAResource implements XAResource {
         }
         requireNonNullXid(xid);
 
-        this.computeAssociation(Routine.FORGET,
+        this.computeAssociation(XARoutine.FORGET,
                                 xid,
                                 EnumSet.of(Association.BranchState.HEURISTICALLY_COMPLETED),
                                 LocalXAResource::forgetAndReset,
@@ -344,18 +344,18 @@ final class LocalXAResource implements XAResource {
         return false;
     }
 
-    private Association computeAssociation(Routine routine,
+    private Association computeAssociation(XARoutine xaRoutine,
                                            Xid xid,
                                            BiFunction<? super Xid, ? super Association, ? extends Association> f)
         throws XAException {
         try {
             return ASSOCIATIONS.compute(xid, f);
         } catch (RuntimeException e) {
-            throw this.convert(routine, e);
+            throw this.convert(xaRoutine, e);
         }
     }
 
-    private Association computeAssociation(Routine routine,
+    private Association computeAssociation(XARoutine xaRoutine,
                                            Xid xid,
                                            EnumSet<Association.BranchState> legalBranchStates,
                                            UnaryOperator<Association> f,
@@ -367,11 +367,11 @@ final class LocalXAResource implements XAResource {
             if (removeAssociationOnError) {
                 ASSOCIATIONS.remove(xid);
             }
-            throw this.convert(routine, e);
+            throw this.convert(xaRoutine, e);
         }
     }
 
-    private XAException convert(Routine routine, Throwable e) {
+    private XAException convert(XARoutine xaRoutine, Throwable e) {
         XAException returnValue;
         if (e == null) {
             returnValue = new XAException(XAER_RMERR);
@@ -387,9 +387,9 @@ final class LocalXAResource implements XAResource {
                 // Any IllegalTransitionException is by definition an XA protocol problem.
                 returnValue = (XAException) new XAException(XAER_PROTO).initCause(e);
             } else if (e instanceof SQLException sqlException) {
-                returnValue = this.sqlExceptionConverter.apply(routine, sqlException);
+                returnValue = this.sqlExceptionConverter.convert(xaRoutine, sqlException);
             } else if (cause instanceof SQLException sqlException) {
-                returnValue = this.sqlExceptionConverter.apply(routine, sqlException);
+                returnValue = this.sqlExceptionConverter.convert(xaRoutine, sqlException);
             } else {
                 returnValue = (XAException) new XAException(XAER_RMERR).initCause(e);
             }
@@ -414,7 +414,7 @@ final class LocalXAResource implements XAResource {
 
     // (Used via method reference only when a sqlExceptionConverter was not supplied at construction time. This is the
     // default implementation.)
-    private static XAException convert(Routine routine, SQLException s) {
+    private static XAException convert(XARoutine xaRoutine, SQLException s) {
         if (s == null) {
             return new XAException(XAER_RMERR);
         }
@@ -579,21 +579,6 @@ final class LocalXAResource implements XAResource {
      * Inner and nested classes.
      */
 
-
-    /**
-     * An enum describing XA routines modeled by an {@link XAResource} implementation such as {@link LocalXAResource}.
-     */
-    enum Routine {
-
-        START,
-        END,
-        PREPARE,
-        COMMIT,
-        ROLLBACK,
-        RECOVER,
-        FORGET;
-
-    }
 
     private static record Association(BranchState branchState,
                                       Xid xid,
@@ -786,6 +771,8 @@ final class LocalXAResource implements XAResource {
 
         private Association runAndReset(SQLRunnable r, SQLRunnable rollbackRunnable, boolean onePhase)
             throws SQLException {
+            // If rollbackRunnable is true, then we're doing a commit.
+            // If rollbackRunnable is null, then we're doing a rollback, and onePhase will be false.
             Association a;
             // TO DO: take onePhase into account to figure out what to do with the exceptions. Certain XA_RB* codes can
             // be used only when onePhase is true.

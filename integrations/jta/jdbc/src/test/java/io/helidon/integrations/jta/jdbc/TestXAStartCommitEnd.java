@@ -173,7 +173,8 @@ final class TestXAStartCommitEnd {
         // manager informing the resource manager to start associating
         // the transaction with the work performed through the
         // corresponding resource—by invoking the XAResource.start
-        // method."  So this causes XAResource#start to be invoked.
+        // method [on the same thread]."  So this causes
+        // XAResource#start to be invoked.
         t.enlistResource(nop);
 
         // Note that (at least with TMSUCCESS) explicit delisting does

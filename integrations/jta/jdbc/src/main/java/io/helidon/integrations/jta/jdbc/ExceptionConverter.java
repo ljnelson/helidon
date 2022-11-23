@@ -15,30 +15,37 @@
  */
 package io.helidon.integrations.jta.jdbc;
 
-import java.sql.SQLException;
-
 import javax.transaction.xa.XAException;
 
 /**
- * A {@linkplain FunctionalInterface functional interface} whose implementations can convert a {@link SQLException}
- * encountered in the context of an {@linkplain XARoutine XA routine} to an appropriate {@link XAException}.
+ * A {@linkplain FunctionalInterface functional interface} whose implementations can convert a kind of {@link Exception}
+ * encountered in the context of an {@linkplain XARoutine XA routine} to an appropriate {@link XAException}, according
+ * to the rules in the <a href="https://pubs.opengroup.org/onlinepubs/009680699/toc.pdf">XA specification</a> as
+ * expressed in the {@linkplain javax.transaction.xa.XAResource documentation for the <code>XAResource</code>
+ * interface}.
  *
- * @see #convert(Routine, SQLException)
+ * @see #convert(XARoutine, Exception)
  *
  * @see XARoutine
+ *
+ * @see XAException#errorCode
+ *
+ * @see javax.transaction.xa.XAResource
+ *
+ * @see <a href="https://pubs.opengroup.org/onlinepubs/009680699/toc.pdf">The XA Specification</a>
  */
 @FunctionalInterface
-public interface SQLExceptionConverter {
+public interface ExceptionConverter {
 
 
     /**
-     * Converts the supplied {@link SQLException} encountered in the context of the supplied {@link XARoutine} to an
+     * Converts the supplied {@link Exception} encountered in the context of the supplied {@link XARoutine} to an
      * appropriate {@link XAException}, following the rules of the <a
      * href="https://pubs.opengroup.org/onlinepubs/009680699/toc.pdf">XA specification</a>.
      *
      * @param xaRoutine the {@link XARoutine}; must not be {@code null}
      *
-     * @param sqlException the {@link SQLException} to convert; may be {@code null}
+     * @param exception the {@link Exception} to convert; may be {@code null}
      *
      * @return a suitable non-{@code null} {@link XAException}
      *
@@ -46,7 +53,7 @@ public interface SQLExceptionConverter {
      *
      * @see XAException
      */
-    XAException convert(XARoutine xaRoutine, SQLException sqlException);
+    XAException convert(XARoutine xaRoutine, Exception exception);
 
 
     /**

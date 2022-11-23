@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -33,7 +34,7 @@ import javax.transaction.xa.Xid;
 
 import io.helidon.integrations.jdbc.SQLRunnable;
 import io.helidon.integrations.jdbc.UncheckedSQLException;
-import io.helidon.integrations.jta.jdbc.SQLExceptionConverter.XARoutine;
+import io.helidon.integrations.jta.jdbc.ExceptionConverter.XARoutine;
 
 import static javax.transaction.xa.XAException.XAER_DUPID;
 import static javax.transaction.xa.XAException.XAER_INVAL;
@@ -81,7 +82,7 @@ final class LocalXAResource implements XAResource {
 
     private final Function<? super Xid, ? extends Connection> connectionFunction;
 
-    private final SQLExceptionConverter sqlExceptionConverter;
+    private final ExceptionConverter exceptionConverter;
 
 
     /*
@@ -97,7 +98,7 @@ final class LocalXAResource implements XAResource {
      * never return {@code null}; must be safe for concurrent use by multiple threads; will never be invoked with a
      * {@code null} {@link Xid}
      *
-     * @param sqlExceptionConverter a {@link SQLExceptionConverter} that accepts a {@link XARoutine} and a {@link
+     * @param exceptionConverter a {@link ExceptionConverter} that accepts a {@link XARoutine} and a {@link
      * SQLException} and converts the {@link SQLException} to an <em>appropriate</em> {@link XAException} following the
      * rules defined by the <a href="https://pubs.opengroup.org/onlinepubs/009680699/toc.pdf">XA Specification</a> as
      * interpreted by the specification of the {@code javax.transaction.xa} package and its classes; may be {@code null}
@@ -105,10 +106,10 @@ final class LocalXAResource implements XAResource {
      *
      * @see #start(Xid, int)
      */
-    LocalXAResource(Function<? super Xid, ? extends Connection> connectionFunction, SQLExceptionConverter sqlExceptionConverter) {
+    LocalXAResource(Function<? super Xid, ? extends Connection> connectionFunction, ExceptionConverter exceptionConverter) {
         super();
         this.connectionFunction = Objects.requireNonNull(connectionFunction, "connectionFunction");
-        this.sqlExceptionConverter = sqlExceptionConverter == null ? LocalXAResource::convert : sqlExceptionConverter;
+        this.exceptionConverter = exceptionConverter == null ? LocalXAResource::convert0 : exceptionConverter;
     }
 
 
@@ -387,9 +388,9 @@ final class LocalXAResource implements XAResource {
                 // Any IllegalTransitionException is by definition an XA protocol problem.
                 returnValue = (XAException) new XAException(XAER_PROTO).initCause(e);
             } else if (e instanceof SQLException sqlException) {
-                returnValue = this.sqlExceptionConverter.convert(xaRoutine, sqlException);
+                returnValue = this.exceptionConverter.convert(xaRoutine, sqlException);
             } else if (cause instanceof SQLException sqlException) {
-                returnValue = this.sqlExceptionConverter.convert(xaRoutine, sqlException);
+                returnValue = this.exceptionConverter.convert(xaRoutine, sqlException);
             } else {
                 returnValue = (XAException) new XAException(XAER_RMERR).initCause(e);
             }
@@ -412,31 +413,43 @@ final class LocalXAResource implements XAResource {
         }
     }
 
-    // (Used via method reference only when a sqlExceptionConverter was not supplied at construction time. This is the
+    // (Used via method reference only when an exceptionConverter was not supplied at construction time. This is the
     // default implementation.)
-    private static XAException convert(XARoutine xaRoutine, SQLException s) {
-        if (s == null) {
+    private static XAException convert0(XARoutine xaRoutine, Exception e) {
+        if (e == null) {
             return new XAException(XAER_RMERR);
-        }
-        Throwable cause = s.getCause();
-        if (cause instanceof XAException xaException) {
-            // No matter what, if the cause was an XAException then it is canonical.
+        } else if (e instanceof XAException xaException) {
             return xaException;
+        } else {
+            Throwable cause = e.getCause();
+            if (cause instanceof XAException xaException) {
+                // No matter what, if the cause was an XAException then it is canonical.
+                return xaException;
+            } else {
+                Supplier<? extends String> sqlStateSupplier;
+                if (e instanceof SQLException s) {
+                    sqlStateSupplier = s::getSQLState;
+                } else if (cause instanceof SQLException s) {
+                    sqlStateSupplier = s::getSQLState;
+                } else {
+                    sqlStateSupplier = () -> null;
+                }
+                String sqlState = sqlStateSupplier.get();
+                if (sqlState != null && (sqlState.startsWith("080") || sqlState.equalsIgnoreCase("08S01"))) {
+                    // Connection-related database error; might be transient; use XAER_RMFAIL instead of XAER_RMERR,
+                    // apparently.  See, for example,
+                    // https://github.com/pgjdbc/pgjdbc/commit/e5aab1cd3e49051f46298d8f1fd9f66af1731299. Also see
+                    // https://github.com/pgjdbc/pgjdbc/blob/98c04a0c903e90f2d5d10a09baf1f753747b2556/pgjdbc/src/main/java/org/postgresql/xa/PGXAConnection.java#L651-L657
+                    // and
+                    // https://github.com/pgjdbc/pgjdbc/blob/98c04a0c903e90f2d5d10a09baf1f753747b2556/pgjdbc/src/main/java/org/postgresql/xa/PGXAConnection.java#L553.
+                    //
+                    // But also note XAER_RMERR vs. XAER_RMFAIL changes semantics depending on the routine (start, end,
+                    // commit, rollback, prepare, forget, recover).
+                    return (XAException) new XAException(XAER_RMFAIL).initCause(e);
+                }
+            }
         }
-        String sqlState = s.getSQLState();
-        if (sqlState != null && (sqlState.startsWith("080") || sqlState.equalsIgnoreCase("08S01"))) {
-            // Connection-related database error; might be transient; use XAER_RMFAIL instead of XAER_RMERR, apparently.
-            // See, for example, https://github.com/pgjdbc/pgjdbc/commit/e5aab1cd3e49051f46298d8f1fd9f66af1731299. Also
-            // see
-            // https://github.com/pgjdbc/pgjdbc/blob/98c04a0c903e90f2d5d10a09baf1f753747b2556/pgjdbc/src/main/java/org/postgresql/xa/PGXAConnection.java#L651-L657
-            // and
-            // https://github.com/pgjdbc/pgjdbc/blob/98c04a0c903e90f2d5d10a09baf1f753747b2556/pgjdbc/src/main/java/org/postgresql/xa/PGXAConnection.java#L553.
-            //
-            // But also note XAER_RMERR vs. XAER_RMFAIL changes semantics depending on the routine (start, end, commit,
-            // rollback, prepare, forget, recover).
-            return (XAException) new XAException(XAER_RMFAIL).initCause(s);
-        }
-        return (XAException) new XAException(XAER_RMERR).initCause(s);
+        return (XAException) new XAException(XAER_RMERR).initCause(e);
     }
 
     // (Invoked only in context of a remapping BiFunction, from computeAssociation().)

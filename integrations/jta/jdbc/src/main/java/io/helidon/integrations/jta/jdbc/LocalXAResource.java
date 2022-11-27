@@ -435,13 +435,18 @@ final class LocalXAResource implements XAResource {
                     sqlStateSupplier = () -> null;
                 }
                 String sqlState = sqlStateSupplier.get();
-                if (sqlState != null && (sqlState.startsWith("080") || sqlState.equalsIgnoreCase("08S01"))) {
+                if (sqlState != null
+                    && (sqlState.startsWith("080")
+                        || sqlState.equalsIgnoreCase("08S01")
+                        || sqlState.equalsIgnoreCase("JZ006"))) {
                     // Connection-related database error; might be transient; use XAER_RMFAIL instead of XAER_RMERR,
                     // apparently.  See, for example,
                     // https://github.com/pgjdbc/pgjdbc/commit/e5aab1cd3e49051f46298d8f1fd9f66af1731299. Also see
                     // https://github.com/pgjdbc/pgjdbc/blob/98c04a0c903e90f2d5d10a09baf1f753747b2556/pgjdbc/src/main/java/org/postgresql/xa/PGXAConnection.java#L651-L657
                     // and
-                    // https://github.com/pgjdbc/pgjdbc/blob/98c04a0c903e90f2d5d10a09baf1f753747b2556/pgjdbc/src/main/java/org/postgresql/xa/PGXAConnection.java#L553.
+                    // https://github.com/pgjdbc/pgjdbc/blob/98c04a0c903e90f2d5d10a09baf1f753747b2556/pgjdbc/src/main/java/org/postgresql/xa/PGXAConnection.java#L553. Also
+                    // see
+                    // https://github.com/ironjacamar/ironjacamar/blob/ff62b8b23f59f9fbb9c15be40fef38efb872c436/core/src/main/java/org/jboss/jca/core/tx/jbossts/LocalConnectableXAResourceImpl.java#L55-L61.
                     //
                     // But also note XAER_RMERR vs. XAER_RMFAIL changes semantics depending on the routine (start, end,
                     // commit, rollback, prepare, forget, recover).

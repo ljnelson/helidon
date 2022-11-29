@@ -87,6 +87,7 @@ final class TestTransactionSpecificConnection {
         }
     }
 
+    @Deprecated
     @Test
     final void testCloseableAndClosedBehavior() throws SQLException {
         final TransactionSpecificConnection c = new TransactionSpecificConnection(this.h2ds.getConnection());

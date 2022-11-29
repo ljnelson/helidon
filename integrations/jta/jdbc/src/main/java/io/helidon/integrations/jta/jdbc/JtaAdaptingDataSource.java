@@ -33,7 +33,7 @@ import jakarta.transaction.TransactionSynchronizationRegistry;
  * pools, and that makes a non-JTA-aware {@link DataSource} behave as sensibly as possible in the presence of a
  * JTA-managed transaction.
  */
-public final class JtaDataSource2 extends AbstractDataSource {
+public final class JtaAdaptingDataSource extends AbstractDataSource {
 
 
     /*
@@ -52,11 +52,13 @@ public final class JtaDataSource2 extends AbstractDataSource {
 
 
     /**
-     * Creates a new {@link JtaDataSource2}.
+     * Creates a new {@link JtaAdaptingDataSource}.
      *
-     * @param tm a {@link TransactionManager}; must not be {@code null}
+     * @param tm a {@link TransactionManager}; must not be {@code null} unless {@code ds} is also an {@link
+     * XADataSource}
      *
-     * @param tsr a {@link TransactionSynchronizationRegistry}; must not be {@code null}
+     * @param tsr a {@link TransactionSynchronizationRegistry}; must not be {@code null} unless {@code ds} is also an
+     * {@link XADataSource}
      *
      * @param ec an {@link ExceptionConverter}; may be {@code null} in which case a default implementation will be used
      * instead
@@ -66,7 +68,10 @@ public final class JtaDataSource2 extends AbstractDataSource {
      * @exception NullPointerException if {@code tm}, {@code tsr} or {@code ds} is {@code null}
      */
     // Undefined behavior if ds ends up supplying the return value of an invocation of XAConnection#getConnection().
-    public JtaDataSource2(TransactionManager tm, TransactionSynchronizationRegistry tsr, ExceptionConverter ec, DataSource ds) {
+    public JtaAdaptingDataSource(TransactionManager tm,
+                                 TransactionSynchronizationRegistry tsr,
+                                 ExceptionConverter ec,
+                                 DataSource ds) {
         super();
         if (Objects.requireNonNull(ds, "ds") instanceof XADataSource) {
             // Some connection pools offer an object that implements both DataSource and XADataSource. If so, assume

@@ -23,7 +23,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -42,6 +41,7 @@ import static javax.transaction.xa.XAException.XAER_NOTA;
 import static javax.transaction.xa.XAException.XAER_PROTO;
 import static javax.transaction.xa.XAException.XAER_RMERR;
 import static javax.transaction.xa.XAException.XAER_RMFAIL;
+import static javax.transaction.xa.XAException.XA_RBROLLBACK;
 import static javax.transaction.xa.XAResource.TMENDRSCAN;
 import static javax.transaction.xa.XAResource.TMFAIL;
 import static javax.transaction.xa.XAResource.TMJOIN;
@@ -235,12 +235,19 @@ final class LocalXAResource implements XAResource {
         }
         requireNonNullXid(xid);
 
-        // Error handling needs to be very specific. XAER_RMERR indicates catastrophic failure in some hazy
-        // sense. XAER_RMFAIL indicates a transient error. You can see that XAER_RMERR and (the completely
+        // Error handling needs to be very specific. XAER_RMERR indicates catastrophic failure (like if a local
+        // rollback(), issued in response to a local commit() failure, occurs).  XAER_RMFAIL indicates a transient
+        // error, i.e. we tried to Do The Thing but for now it Didn't Work.
+        //
+        // Concrete examples: You can see that XAER_RMERR and (the completely
         // non-transient) XAER_PROTO (for example) are both treated as Equally Bad Things:
         // https://github.com/jbosstm/narayana/blob/c5f02d07edb34964b64341974ab689ea44536603/ArjunaJTA/jta/classes/com/arjuna/ats/internal/jta/resources/arjunacore/XAResourceRecord.java#L512-L514
+        //
         // You can also see that XAER_RMFAIL does something different and is no different from XA_RETRY:
         // https://github.com/jbosstm/narayana/blob/c5f02d07edb34964b64341974ab689ea44536603/ArjunaJTA/jta/classes/com/arjuna/ats/internal/jta/resources/arjunacore/XAResourceRecord.java#L525-L534
+        //
+        // Finally, if an error happens during commit, we issue a SQL/JDBC/local transaction rollback() command.  If
+        // that works, then we return XA_RB*. If that fails, chances are we return XAER_RMERR, but
         this.computeAssociation(XARoutine.COMMIT,
                                 xid,
                                 EnumSet.of(Association.BranchState.IDLE,
@@ -426,31 +433,33 @@ final class LocalXAResource implements XAResource {
                 // No matter what, if the cause was an XAException then it is canonical.
                 return xaException;
             } else {
-                Supplier<? extends String> sqlStateSupplier;
+                SQLException sqlException;
                 if (e instanceof SQLException s) {
-                    sqlStateSupplier = s::getSQLState;
+                    sqlException = s;
                 } else if (cause instanceof SQLException s) {
-                    sqlStateSupplier = s::getSQLState;
+                    sqlException = s;
                 } else {
-                    sqlStateSupplier = () -> null;
+                    sqlException = null;
                 }
-                String sqlState = sqlStateSupplier.get();
-                if (sqlState != null
-                    && (sqlState.startsWith("080")
-                        || sqlState.equalsIgnoreCase("08S01")
-                        || sqlState.equalsIgnoreCase("JZ006"))) {
-                    // Connection-related database error; might be transient; use XAER_RMFAIL instead of XAER_RMERR,
-                    // apparently.  See, for example,
-                    // https://github.com/pgjdbc/pgjdbc/commit/e5aab1cd3e49051f46298d8f1fd9f66af1731299. Also see
-                    // https://github.com/pgjdbc/pgjdbc/blob/98c04a0c903e90f2d5d10a09baf1f753747b2556/pgjdbc/src/main/java/org/postgresql/xa/PGXAConnection.java#L651-L657
-                    // and
-                    // https://github.com/pgjdbc/pgjdbc/blob/98c04a0c903e90f2d5d10a09baf1f753747b2556/pgjdbc/src/main/java/org/postgresql/xa/PGXAConnection.java#L553. Also
-                    // see
-                    // https://github.com/ironjacamar/ironjacamar/blob/ff62b8b23f59f9fbb9c15be40fef38efb872c436/core/src/main/java/org/jboss/jca/core/tx/jbossts/LocalConnectableXAResourceImpl.java#L55-L61.
-                    //
-                    // But also note XAER_RMERR vs. XAER_RMFAIL changes semantics depending on the routine (start, end,
-                    // commit, rollback, prepare, forget, recover).
-                    return (XAException) new XAException(XAER_RMFAIL).initCause(e);
+                if (sqlException != null) {
+                    String sqlState = sqlException.getSQLState();
+                    if (sqlState != null
+                        && (sqlState.startsWith("080")
+                            || sqlState.equalsIgnoreCase("08S01")
+                            || sqlState.equalsIgnoreCase("JZ006"))) {
+                        // Connection-related database error; might be transient; use XAER_RMFAIL instead of XAER_RMERR,
+                        // apparently.  See, for example,
+                        // https://github.com/pgjdbc/pgjdbc/commit/e5aab1cd3e49051f46298d8f1fd9f66af1731299. Also see
+                        // https://github.com/pgjdbc/pgjdbc/blob/98c04a0c903e90f2d5d10a09baf1f753747b2556/pgjdbc/src/main/java/org/postgresql/xa/PGXAConnection.java#L651-L657
+                        // and
+                        // https://github.com/pgjdbc/pgjdbc/blob/98c04a0c903e90f2d5d10a09baf1f753747b2556/pgjdbc/src/main/java/org/postgresql/xa/PGXAConnection.java#L553. Also
+                        // see
+                        // https://github.com/ironjacamar/ironjacamar/blob/ff62b8b23f59f9fbb9c15be40fef38efb872c436/core/src/main/java/org/jboss/jca/core/tx/jbossts/LocalConnectableXAResourceImpl.java#L55-L61.
+                        //
+                        // But also note XAER_RMERR vs. XAER_RMFAIL changes semantics depending on the routine (start, end,
+                        // commit, rollback, prepare, forget, recover).
+                        return (XAException) new XAException(XAER_RMFAIL).initCause(e);
+                    }
                 }
             }
         }
@@ -518,6 +527,8 @@ final class LocalXAResource implements XAResource {
             a = a.commitAndReset(onePhase);
         } catch (SQLException e) {
             throw new UncheckedSQLException(e);
+        } catch (XAException e) {
+            throw new UncheckedXAException(e);
         }
         assert a.branchState() == Association.BranchState.NON_EXISTENT_TRANSACTION;
         // Critically important: remove the association.
@@ -778,22 +789,23 @@ final class LocalXAResource implements XAResource {
             throw new IllegalTransitionException(this.toString());
         }
 
-        private Association commitAndReset(boolean onePhase) throws SQLException {
+        private Association commitAndReset(boolean onePhase) throws SQLException, XAException {
             Connection c = this.connection();
             return this.runAndReset(c::commit, c::rollback, onePhase);
         }
 
         private Association rollbackAndReset() throws SQLException {
-            return this.runAndReset(this.connection()::rollback, null, false);
+            try {
+                return this.runAndReset(this.connection()::rollback, null, false);
+            } catch (XAException e) {
+                throw new AssertionError(e.getMessage(), e);
+            }
         }
 
-        private Association runAndReset(SQLRunnable r, SQLRunnable rollbackRunnable, boolean onePhase)
-            throws SQLException {
+        private Association runAndReset(SQLRunnable r, SQLRunnable rollbackRunnable, boolean onePhaseCommit)
+            throws SQLException, XAException {
             // If rollbackRunnable is true, then we're doing a commit.
-            // If rollbackRunnable is null, then we're doing a rollback, and onePhase will be false.
             Association a;
-            // TO DO: take onePhase into account to figure out what to do with the exceptions. Certain XA_RB* codes can
-            // be used only when onePhase is true.
             SQLException sqlException = null;
             try {
                 r.run();
@@ -802,13 +814,19 @@ final class LocalXAResource implements XAResource {
                 if (rollbackRunnable != null) {
                     try {
                         rollbackRunnable.run();
+                        if (onePhaseCommit) {
+                            // localXAResource.commit(someXid, true) caused us to try to call
+                            // someConnection.commit(). That failed, and we successfully rolled back. Now we have to
+                            // throw an XAException that indicates all this.
+                            throw (XAException) new XAException(XA_RBROLLBACK).initCause(e);
+                        }
                     } catch (SQLException e2) {
                         e.setNextException(e2);
                     }
                 }
             } finally {
                 try {
-                    a = this.reset(sqlException, onePhase);
+                    a = this.reset();
                 } catch (SQLException e) {
                     a = null;
                     if (sqlException == null) {
@@ -830,13 +848,6 @@ final class LocalXAResource implements XAResource {
         }
 
         private Association reset() throws SQLException {
-            return this.reset(null, false);
-        }
-
-        private Association reset(SQLException sqlException, boolean onePhase) throws SQLException {
-            // TO DO: the SQLException passed in here is to allow this method to decide whether to place the Association
-            // it returns into a rollback state (XAER_RB*) or heuristic state. As of this writing it is ignored but
-            // everything else is in place to deal with it properly.
             Connection connection = this.connection();
             connection.setAutoCommit(this.priorAutoCommit());
             return new Association(BranchState.NON_EXISTENT_TRANSACTION,

@@ -32,7 +32,10 @@ import io.helidon.integrations.jdbc.AbstractDataSource;
 /**
  * An {@link AbstractDataSource} that adapts an {@link XADataSource}
  * to the {@link javax.sql.DataSource} contract.
+ *
+ * @deprecated This class is slated for removal with no replacement.
  */
+@Deprecated(forRemoval = true, since = "3.0.3")
 public final class XADataSourceWrappingDataSource extends AbstractDataSource {
 
     private final XADataSource xaDataSource;

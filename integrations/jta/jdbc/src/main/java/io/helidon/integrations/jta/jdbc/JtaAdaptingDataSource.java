@@ -60,16 +60,56 @@ public final class JtaAdaptingDataSource extends AbstractDataSource {
      * @param tsr a {@link TransactionSynchronizationRegistry}; must not be {@code null} unless {@code ds} is also an
      * {@link XADataSource}
      *
+     * @param interposedSynchronizations whether any {@link jakarta.transaction.Synchronization Synchronization}s
+     * registered should be registered as interposed synchronizations; see {@link
+     * TransactionSynchronizationRegistry#registerInterposedSynchronization(jakarta.transaction.Synchronization)} and
+     * {@link jakarta.transaction.Transaction#registerSynchronization(jakarta.transaction.Synchronization)}
+     *
      * @param ec an {@link ExceptionConverter}; may be {@code null} in which case a default implementation will be used
      * instead
      *
-     * @param ds a {@link DataSource} that may not be XA-compliant; must not be {@code null}
+     * @param ds a {@link DataSource} that may not be XA-compliant; must not be {@code null}; normally supplied by a
+     * connection pool implementation
      *
-     * @exception NullPointerException if {@code tm}, {@code tsr} or {@code ds} is {@code null}
+     * @exception NullPointerException if {@code tm}, {@code tsr} or {@code ds} is {@code null} when it is not permitted
+     * to be
      */
     // Undefined behavior if ds ends up supplying the return value of an invocation of XAConnection#getConnection().
     public JtaAdaptingDataSource(TransactionManager tm,
                                  TransactionSynchronizationRegistry tsr,
+                                 boolean interposedSynchronizations,
+                                 ExceptionConverter ec,
+                                 DataSource ds) {
+        this(tm == null ? null : tm::getTransaction, tsr, interposedSynchronizations, ec, ds);
+    }
+
+    /**
+     * Creates a new {@link JtaAdaptingDataSource}.
+     *
+     * @param ts a {@link TransactionSupplier}; must not be {@code null} unless {@code ds} is also an {@link
+     * XADataSource}
+     *
+     * @param tsr a {@link TransactionSynchronizationRegistry}; must not be {@code null} unless {@code ds} is also an
+     * {@link XADataSource}
+     *
+     * @param interposedSynchronizations whether any {@link jakarta.transaction.Synchronization Synchronization}s
+     * registered should be registered as interposed synchronizations; see {@link
+     * TransactionSynchronizationRegistry#registerInterposedSynchronization(jakarta.transaction.Synchronization)} and
+     * {@link jakarta.transaction.Transaction#registerSynchronization(jakarta.transaction.Synchronization)}
+     *
+     * @param ec an {@link ExceptionConverter}; may be {@code null} in which case a default implementation will be used
+     * instead
+     *
+     * @param ds a {@link DataSource} that may not be XA-compliant; must not be {@code null}; normally supplied by a
+     * connection pool implementation
+     *
+     * @exception NullPointerException if {@code ts}, {@code tsr} or {@code ds} is {@code null} when it is not permitted
+     * to be
+     */
+    // Undefined behavior if ds ends up supplying the return value of an invocation of XAConnection#getConnection().
+    public JtaAdaptingDataSource(TransactionSupplier ts,
+                                 TransactionSynchronizationRegistry tsr,
+                                 boolean interposedSynchronizations,
                                  ExceptionConverter ec,
                                  DataSource ds) {
         super();
@@ -79,8 +119,10 @@ public final class JtaAdaptingDataSource extends AbstractDataSource {
             this.acs = ds::getConnection;
             this.uacs = ds::getConnection;
         } else {
-            this.acs = (u, p) -> JtaConnection.connection(tm::getTransaction, tsr, ec, ds.getConnection(u, p));
-            this.uacs = () -> JtaConnection.connection(tm::getTransaction, tsr, ec, ds.getConnection());
+            Objects.requireNonNull(ts, "ts");
+            Objects.requireNonNull(tsr, "tsr");
+            this.acs = (u, p) -> JtaConnection.connection(ts, tsr, interposedSynchronizations, ec, ds.getConnection(u, p));
+            this.uacs = () -> JtaConnection.connection(ts, tsr, interposedSynchronizations, ec, ds.getConnection());
         }
     }
 

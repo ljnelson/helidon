@@ -533,7 +533,11 @@ public final class JtaDataSource extends AbstractDataSource implements Synchroni
     /**
      * A {@link ConditionallyCloseableConnection} that tracks when the {@link #close()} method has been called and that
      * handles auto-commit gracefully.
+     *
+     * @deprecated This class is slated for removal.  See the {@link ConditionallyCloseableConnection} class for an
+     * alternative.
      */
+    @Deprecated(forRemoval = true, since = "3.0.3")
     static final class TransactionSpecificConnection extends ConditionallyCloseableConnection {
 
         private static final boolean STRICT_CLOSED_CHECKING = Boolean.getBoolean("helidon.jta.strict.closed.checking");
@@ -570,6 +574,7 @@ public final class JtaDataSource extends AbstractDataSource implements Synchroni
 
     }
 
+    @Deprecated(forRemoval = true, since = "3.0.3")
     private static final class AuthenticatedConnectionIdentifier {
 
         private final String username;

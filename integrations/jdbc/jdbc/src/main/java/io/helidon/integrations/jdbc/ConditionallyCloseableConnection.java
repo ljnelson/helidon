@@ -262,7 +262,7 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * #isCloseable() is closeable}.
      *
      * <p>Subclasses that override this method must not directly or
-     * indirectly call {@link #failIfClosed()} or undefined behavior
+     * indirectly call {@link #failWhenClosed()} or undefined behavior
      * may result.</p>
      *
      * <p>If {@code strictClosedChecking} was {@code true} {@linkplain
@@ -317,7 +317,7 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * false}.</p>
      *
      * <p>Subclasses that override this method must not directly or
-     * indirectly call {@link #failIfClosed()} or undefined behavior
+     * indirectly call {@link #failWhenClosed()} or undefined behavior
      * may result.</p>
      *
      * @return {@code true} if a call to {@link #close()} will
@@ -347,7 +347,7 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * #isClosePending() close pending status} to {@code false}.
      *
      * <p>Subclasses that override this method must not directly or
-     * indirectly call {@link #failIfClosed()} or undefined behavior
+     * indirectly call {@link #failWhenClosed()} or undefined behavior
      * may result.</p>
      *
      * <p>Note that calling this method with a value of {@code true}
@@ -358,7 +358,8 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * <h4>Design Note</h4>
      *
      * <p>This method does not throw {@link SQLException} only because
-     * of an oversight. Callers should consider catching {@link
+     * of an oversight in the design of the original version of this
+     * class. Callers should consider catching {@link
      * UncheckedSQLException} where appropriate instead. The default
      * implementation of this method does not throw any exceptions of
      * any kind.</p>
@@ -392,7 +393,7 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * #isCloseable() not closeable}.
      *
      * <p>Subclasses that override this method must not directly or
-     * indirectly call {@link #failIfClosed()} or undefined behavior
+     * indirectly call {@link #failWhenClosed()} or undefined behavior
      * may result.</p>
      *
      * <p>Subclasses that override this method must not directly or
@@ -487,7 +488,7 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * the following implementation: {@code super.isClosed()}.</p>
      *
      * <p>Subclasses that override this method must not directly or
-     * indirectly call {@link #failIfClosed()} or undefined behavior
+     * indirectly call {@link #failWhenClosed()} or undefined behavior
      * may result.</p>
      *
      * @return {@code true} if and only if this {@link
@@ -909,19 +910,6 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      */
     // (Invoked by method reference only.)
     private static void doNothing() {
-
-    }
-
-
-    /*
-     * Inner and nested classes.
-     */
-
-
-    @FunctionalInterface
-    private interface SQLBooleanSupplier {
-
-        boolean getAsBoolean() throws SQLException;
 
     }
 

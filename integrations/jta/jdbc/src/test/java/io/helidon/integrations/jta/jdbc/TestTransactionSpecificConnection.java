@@ -23,8 +23,6 @@ import java.sql.Statement;
 
 import javax.sql.DataSource;
 
-import io.helidon.integrations.jta.jdbc.JtaDataSource.TransactionSpecificConnection;
-
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.pool.ProxyConnection;
@@ -45,6 +43,7 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.MatcherAssert.assertThat;
 
+@Deprecated(forRemoval = true, since = "3.0.3")
 final class TestTransactionSpecificConnection {
 
     private JdbcDataSource h2ds;
@@ -56,8 +55,8 @@ final class TestTransactionSpecificConnection {
     }
 
     @BeforeEach
-    final void initializeH2DataSource() throws SQLException, SystemException {
-        final JdbcDataSource ds = new JdbcDataSource();
+    void initializeH2DataSource() throws SQLException, SystemException {
+        JdbcDataSource ds = new JdbcDataSource();
         ds.setURL("jdbc:h2:mem:test");
         ds.setUser("sa");
         ds.setPassword("sa");
@@ -67,19 +66,20 @@ final class TestTransactionSpecificConnection {
     }
 
     @Test
-    final void testConnectionPoolSemantics() throws IllegalAccessException, NoSuchFieldException, SQLException {
-        final Field delegate = ProxyConnection.class.getDeclaredField("delegate");
+    void testConnectionPoolSemantics() throws IllegalAccessException, NoSuchFieldException, SQLException {
+        Field delegate = ProxyConnection.class.getDeclaredField("delegate");
         assertThat(delegate.trySetAccessible(), is(true));
-        final HikariConfig hc = new HikariConfig();
+        HikariConfig hc = new HikariConfig();
         hc.setDataSource(this.h2ds);
-        try (final HikariDataSource ds = new HikariDataSource(hc)) {
-            final Connection c1 = ds.getConnection();
-            final Connection d1 = (Connection) delegate.get(c1);
+        try (HikariDataSource ds = new HikariDataSource(hc)) {
+            Connection c1 = ds.getConnection();
+            Connection d1 = (Connection) delegate.get(c1);
             c1.close();
             assertThat(c1.isClosed(), is(true));
             assertThat(d1.isClosed(), is(false));
-            final Connection c2 = ds.getConnection();
-            final Connection d2 = (Connection) delegate.get(c2);
+
+            Connection c2 = ds.getConnection();
+            Connection d2 = (Connection) delegate.get(c2);
             c2.close();
             assertThat(c2.isClosed(), is(true));
             assertThat(c1, not(sameInstance(c2)));
@@ -87,45 +87,51 @@ final class TestTransactionSpecificConnection {
         }
     }
 
-    @Deprecated
     @Test
-    final void testCloseableAndClosedBehavior() throws SQLException {
-        final TransactionSpecificConnection c = new TransactionSpecificConnection(this.h2ds.getConnection());
-        try {
-            assertThat(c.isCloseable(), is(false));
-            assertThat(c.isClosed(), is(false));
-            assertThat(c.getAutoCommit(), is(false));
-            c.close(); // no-op
-            assertThat(c.isClosed(), is(false));
-            assertThat(c.isCloseCalled(), is(true));
-            c.setCloseable(true);
-            assertThat(c.isCloseable(), is(true));
-            assertThat(c.isCloseCalled(), is(true)); // still
-            assertThat(c.isClosed(), is(false));
-        } finally {
-            c.close(); // the real thing
-        }
+    void testCloseableAndClosedBehavior() throws SQLException {
+        @SuppressWarnings("removal")
+        io.helidon.integrations.jta.jdbc.JtaDataSource.TransactionSpecificConnection c =
+            new io.helidon.integrations.jta.jdbc.JtaDataSource.TransactionSpecificConnection(this.h2ds.getConnection());
+
+        assertThat(c.isCloseable(), is(false));
+        assertThat(c.isClosed(), is(false));
+        assertThat(c.getAutoCommit(), is(false));
+
+        c.close(); // no-op
+        assertThat(c.isCloseable(), is(false));
+        assertThat(c.isClosed(), is(false));
+        assertThat(c.isCloseCalled(), is(true));
+
+        c.setCloseable(true);
+        assertThat(c.isCloseable(), is(true));
+        assertThat(c.isCloseCalled(), is(true)); // still
+        assertThat(c.isClosed(), is(false));
+
+        c.close(); // the real thing
         assertThat(c.isClosed(), is(true));
         assertThat(c.isCloseCalled(), is(true));
         assertThat(c.isCloseable(), is(false));
     }
 
     @Test
-    final void testTransactionManagerSemantics()
+    void testTransactionManagerSemantics()
         throws HeuristicMixedException,
                HeuristicRollbackException,
                NotSupportedException,
                RollbackException,
                SQLException,
                SystemException {
-        final TransactionManager tm = com.arjuna.ats.jta.TransactionManager.transactionManager();
+        TransactionManager tm = com.arjuna.ats.jta.TransactionManager.transactionManager();
         tm.setTransactionTimeout(20 * 60); // 20 minutes for debugging
         tm.begin();
-        final Transaction t = tm.getTransaction();
+        Transaction t = tm.getTransaction();
+
         // The TransactionSpecificConnection class does not interact
         // with the TransactionManager in any way by itself; prove
         // that this is the case.
-        final TransactionSpecificConnection c = new TransactionSpecificConnection(this.h2ds.getConnection());
+        @SuppressWarnings("removal")
+        io.helidon.integrations.jta.jdbc.JtaDataSource.TransactionSpecificConnection c
+            = new io.helidon.integrations.jta.jdbc.JtaDataSource.TransactionSpecificConnection(this.h2ds.getConnection());
 
         // (The jakarta.transaction.Transaction/TransactionManager
         // state machine is weirder than weird.)
@@ -139,16 +145,19 @@ final class TestTransactionSpecificConnection {
         // Committing the TransactionManager results in
         // STATUS_NO_TRANSACTION.
         // (https://jakarta.ee/specifications/transactions/2.0/jakarta-transactions-spec-2.0.html#completing-a-transaction).
-        // Also makes sense.  What doesn't make sense is why they're
-        // not the same state. See
+        // Also makes sense.  What may not immediately make sense is
+        // why they're not the same state. See
         // https://groups.google.com/g/narayana-users/c/eYVUmhE9QZg.
         assertThat(tm.getStatus(), is(Status.STATUS_NO_TRANSACTION));
 
         assertThat(c.isCloseable(), is(false));
+
         c.close();
         assertThat(c.isClosed(), is(false));
+
         c.setCloseable(true);
         assertThat(c.isCloseable(), is(true));
+
         c.close();
         assertThat(c.isClosed(), is(true));
     }

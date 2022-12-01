@@ -37,8 +37,10 @@ import java.util.Properties;
 import java.util.concurrent.Executor;
 
 /**
- * A JDBC 4.3-compliant {@link Connection} that delegates to another
- * JDBC 4.3-compliant {@link Connection}.
+ * A <a
+ * href="https://download.oracle.com/otn-pub/jcp/jdbc-4_3-mrel3-spec/jdbc4.3-fr-spec.pdf"
+ * target="_parent">JDBC 4.3</a>-compliant {@link Connection} that
+ * delegates to another JDBC 4.3-compliant {@link Connection}.
  */
 public class DelegatingConnection implements Connection {
 

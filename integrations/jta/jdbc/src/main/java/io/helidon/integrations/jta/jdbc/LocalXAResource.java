@@ -609,11 +609,11 @@ final class LocalXAResource implements XAResource {
      */
 
 
-    private static record Association(BranchState branchState,
-                                      Xid xid,
-                                      boolean suspended,
-                                      Connection connection,
-                                      boolean priorAutoCommit) {
+    static record Association(BranchState branchState,
+                              Xid xid,
+                              boolean suspended,
+                              Connection connection,
+                              boolean priorAutoCommit) {
 
         // Branch Association States: (XA specification, table 6-2)
         // T0: Not Associated
@@ -628,15 +628,15 @@ final class LocalXAResource implements XAResource {
         // S4: Rollback Only
         // S5: Heuristically Completed
 
-        private Association(BranchState branchState, Xid xid, Connection connection) {
+        Association(BranchState branchState, Xid xid, Connection connection) {
             this(branchState, xid, false, connection);
         }
 
-        private Association(BranchState branchState, Xid xid, boolean suspended, Connection connection) {
+        Association(BranchState branchState, Xid xid, boolean suspended, Connection connection) {
             this(branchState, xid, suspended, connection, true /* JDBC default; will be set from connection anyway */);
         }
 
-        private Association {
+        Association {
             Objects.requireNonNull(xid, "xid");
             switch (branchState) {
             case IDLE:
@@ -857,7 +857,7 @@ final class LocalXAResource implements XAResource {
                                    this.priorAutoCommit());
         }
 
-        private enum BranchState {
+        enum BranchState {
             NON_EXISTENT_TRANSACTION, // S0
             ACTIVE, // S1
             IDLE, // S2

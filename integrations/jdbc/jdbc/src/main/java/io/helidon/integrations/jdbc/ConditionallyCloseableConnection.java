@@ -37,9 +37,11 @@ import java.util.Properties;
 import java.util.concurrent.Executor;
 
 /**
- * A {@link DelegatingConnection} whose {@link #close()} method
- * performs a close only if the {@link #isCloseable()} method returns
- * {@code true}.
+ * A <a
+ * href="https://download.oracle.com/otn-pub/jcp/jdbc-4_3-mrel3-spec/jdbc4.3-fr-spec.pdf"
+ * target="_parent">JDBC 4.3</a>-compliant {@link
+ * DelegatingConnection} whose {@link #close()} method may or may not
+ * close it depending on other partial state.
  *
  * <h2>Thread Safety</h2>
  *
@@ -47,11 +49,18 @@ import java.util.concurrent.Executor;
  * use by multiple threads because their {@link Connection} delegates
  * may not be.</p>
  *
+ * @see #isClosed()
+ *
  * @see #isCloseable()
  *
  * @see #setCloseable(boolean)
  *
  * @see #close()
+ *
+ * @see #isClosePending()
+ *
+ * @see #ConditionallyCloseableConnection(Connection, boolean,
+ * boolean)
  */
 public class ConditionallyCloseableConnection extends DelegatingConnection {
 
@@ -78,10 +87,32 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      */
     private final SQLRunnable closedChecker;
 
+    /**
+     * A {@link SQLBooleanSupplier} that is the effective body of the
+     * {@link #isClosed()} method.
+     *
+     * <p>This field is never {@code null}.</p>
+     *
+     * <p>This field is set based on the value of the {@code
+     * strictClosedChecking} argument supplied to the {@link
+     * #ConditionallyCloseableConnection(Connection, boolean,
+     * boolean)} constructor.
+     *
+     * @see #isClosed()
+     *
+     * @see #ConditionallyCloseableConnection(Connection, boolean, boolean)
+     */
+    private SQLBooleanSupplier isClosedFunction;
 
     /**
      * Whether or not the {@link #close()} method will actually close
      * this {@link DelegatingConnection}.
+     *
+     * <p>This field is set based on the value of the {@code
+     * strictClosedChecking} argument supplied to the {@link
+     * #ConditionallyCloseableConnection(Connection, boolean,
+     * boolean)} constructor. It may end up deliberately doing
+     * nothing.</p>
      *
      * @see #isCloseable()
      *
@@ -91,6 +122,8 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * boolean)
      */
     private volatile boolean closeable;
+
+    private volatile boolean closePending;
 
 
     /*
@@ -112,11 +145,19 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * @see #ConditionallyCloseableConnection(Connection, boolean,
      * boolean)
      *
-     * @see #setCloseable(boolean)
-     *
-     * @deprecated Please use the {@link
+     * @deprecated This constructor continues to exist for backwards
+     * compatibility only <strong>and its use is strongly
+     * discouraged</strong>. Please use the {@link
      * #ConditionallyCloseableConnection(Connection, boolean,
-     * boolean)} constructor instead.
+     * boolean)} constructor instead <strong>and consider supplying
+     * {@code true} for its {@code strictClosedChecking}
+     * parameter</strong>. In the future, this constructor may change,
+     * without prior notice, to cause new {@link
+     * ConditionallyCloseableConnection} instances created by it to
+     * behave as if they were created by invocations of the {@link
+     * #ConditionallyCloseableConnection(Connection, boolean,
+     * boolean)} constructor instead, with {@code true} supplied for
+     * its {@code strictClosedChecking} parameter.
      */
     @Deprecated(since = "3.0.3")
     public ConditionallyCloseableConnection(Connection delegate) {
@@ -136,13 +177,22 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * @exception NullPointerException if {@code delegate} is {@code
      * null}
      *
-     * @see #setCloseable(boolean)
+     * @see ConditionallyCloseableConnection(Connection, boolean,
+     * boolean)
      *
-     * @see ConditionallyCloseableConnection(Connection, boolean, boolean)
-     *
-     * @deprecated Please use the {@link
+     * @deprecated This constructor continues to exist for backwards
+     * compatibility only <strong>and its use is strongly
+     * discouraged</strong>. Please use the {@link
      * #ConditionallyCloseableConnection(Connection, boolean,
-     * boolean)} constructor instead.
+     * boolean)} constructor instead <strong>and consider supplying
+     * {@code true} for its {@code strictClosedChecking}
+     * parameter</strong>. In the future, this constructor may change,
+     * without prior notice, to cause new {@link
+     * ConditionallyCloseableConnection} instances created by it to
+     * behave as if they were created by invocations of the {@link
+     * #ConditionallyCloseableConnection(Connection, boolean,
+     * boolean)} constructor instead, with {@code true} supplied for
+     * its {@code strictClosedChecking} parameter.
      */
     @Deprecated(since = "3.0.3")
     public ConditionallyCloseableConnection(Connection delegate, boolean closeable) {
@@ -164,19 +214,37 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * method will be invoked before every operation that cannot take
      * place on a closed connection, and, if it returns {@code true},
      * the operation in question will fail with a {@link
-     * SQLException}; it is recommended to supply {@code true} as the
-     * argument for this parameter
+     * SQLException}; <strong>it is strongly recommended to supply
+     * {@code true} as the argument for this parameter</strong>
+     * ({@code false} is permitted for backwards compatibility reasons
+     * only)
      *
      * @exception NullPointerException if {@code delegate} is {@code
      * null}
      *
+     * @see #isCloseable()
+     *
      * @see #setCloseable(boolean)
+     *
+     * @see #close()
+     *
+     * @see #isClosed()
+     *
+     * @see #isClosePending()
      *
      * @see DelegatingConnection#DelegatingConnection(Connection)
      */
-    public ConditionallyCloseableConnection(Connection delegate, boolean closeable, boolean strictClosedChecking) {
+    public ConditionallyCloseableConnection(Connection delegate,
+                                            boolean closeable,
+                                            boolean strictClosedChecking) {
         super(delegate);
-        this.closedChecker = strictClosedChecking ? this::failWhenClosed : ConditionallyCloseableConnection::doNothing;
+        if (strictClosedChecking) {
+            this.closedChecker = this::failWhenClosed;
+            this.isClosedFunction = () -> this.isClosePending() || super.isClosed();
+        } else {
+            this.closedChecker = ConditionallyCloseableConnection::doNothing;
+            this.isClosedFunction = super::isClosed;
+        }
         this.closeable = closeable;
     }
 
@@ -193,18 +261,49 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * Connection#close() closed} only if it {@linkplain
      * #isCloseable() is closeable}.
      *
+     * <p>Subclasses that override this method must not directly or
+     * indirectly call {@link #failIfClosed()} or undefined behavior
+     * may result.</p>
+     *
+     * <p>If {@code strictClosedChecking} was {@code true} {@linkplain
+     * #ConditionallyCloseableConnection(Connection, boolean, boolean)
+     * at construction time} (strongly recommended), then the
+     * following pre- and post-conditions apply:</p>
+     *
+     * <p>If {@link #isCloseable()} returns {@code true} at the point
+     * of an invocation of this method, then after this method
+     * completes, successfully or not, {@link #isClosePending()} will
+     * return {@code false}.</p>
+     *
+     * <p>If {@link #isCloseable()} returns {@code false} at the point
+     * of an invocation of this method, then after this method
+     * completes, successfully or not, {@link #isClosePending()} will
+     * return {@code true}.</p>
+     *
      * <p>Overrides should normally call {@code super.close()} as part
      * of their implementation.</p>
      *
      * @exception SQLException if an error occurs
      *
+     * @see #isClosed()
+     *
      * @see #isCloseable()
+     *
+     * @see #setCloseable(boolean)
+     *
+     * @see #isClosePending()
      */
     @Override // DelegatingConnection
     public void close() throws SQLException {
         // this.checkOpen(); // Deliberately omitted per spec.
         if (this.isCloseable()) {
-            super.close();
+            try {
+                super.close();
+            } finally {
+                this.closePending = false;
+            }
+        } else {
+            this.closePending = true;
         }
     }
 
@@ -217,6 +316,10 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * true} and the {@link #isClosed()} method returns {@code
      * false}.</p>
      *
+     * <p>Subclasses that override this method must not directly or
+     * indirectly call {@link #failIfClosed()} or undefined behavior
+     * may result.</p>
+     *
      * @return {@code true} if a call to {@link #close()} will
      * actually close this {@link ConditionallyCloseableConnection};
      * {@code false} in all other cases
@@ -224,11 +327,13 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * @exception SQLException if {@link #isClosed()} throws a {@link
      * SQLException}
      *
+     * @see #isClosed()
+     *
      * @see #setCloseable(boolean)
      *
      * @see #close()
      *
-     * @see #isClosed()
+     * @see #isClosePending()
      */
     public boolean isCloseable() throws SQLException {
         // this.checkOpen(); // Deliberately omitted.
@@ -237,27 +342,78 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
 
     /**
      * Sets the closeable status of this {@link
-     * ConditionallyCloseableConnection}.
+     * ConditionallyCloseableConnection} and, if the supplied {@code
+     * closeable} agrument is {@code true}, sets the {@linkplain
+     * #isClosePending() close pending status} to {@code false}.
+     *
+     * <p>Subclasses that override this method must not directly or
+     * indirectly call {@link #failIfClosed()} or undefined behavior
+     * may result.</p>
      *
      * <p>Note that calling this method with a value of {@code true}
      * does not necessarily mean that the {@link #isCloseable()}
      * method will subsequently return {@code true}, since the {@link
      * #isClosed()} method may return {@code true}.</p>
      *
+     * <h4>Design Note</h4>
+     *
+     * <p>This method does not throw {@link SQLException} only because
+     * of an oversight. Callers should consider catching {@link
+     * UncheckedSQLException} where appropriate instead. The default
+     * implementation of this method does not throw any exceptions of
+     * any kind.</p>
+     *
      * @param closeable whether or not a call to {@link #close()} will
      * actually close this {@link ConditionallyCloseableConnection}
+     *
+     * @see #isClosed()
      *
      * @see #isCloseable()
      *
      * @see #close()
      *
-     * @see Connection#close()
+     * @see #isClosePending()
      *
-     * @see #isClosed()
+     * @see Connection#close()
      */
     public void setCloseable(boolean closeable) {
         // this.checkOpen(); // Deliberately omitted.
         this.closeable = closeable;
+        if (closeable) {
+            this.closePending = false;
+        }
+    }
+
+    /**
+     * Returns {@code true} if and only if this {@link
+     * ConditionallyCloseableConnection} is behaving as if the {@link
+     * #close()} method has been invoked while this {@link
+     * ConditionallyCloseableConnection} was {@linkplain
+     * #isCloseable() not closeable}.
+     *
+     * <p>Subclasses that override this method must not directly or
+     * indirectly call {@link #failIfClosed()} or undefined behavior
+     * may result.</p>
+     *
+     * <p>Subclasses that override this method must not directly or
+     * indirectly mutate the state of this {@link
+     * ConditionallyCloseableConnection} or undefined behavior may
+     * result.</p>
+     *
+     * @return {@code true} if and only if a close operation is
+     * pending
+     *
+     * @see #isClosed()
+     *
+     * @see #isCloseable()
+     *
+     * @see #setCloseable(boolean)
+     *
+     * @see #close()
+     */
+    public boolean isClosePending() {
+        // this.checkOpen(); // Deliberately omitted.
+        return this.closePending;
     }
 
     @Override // DelegatingConnection
@@ -315,15 +471,24 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * a {@link SQLException} when invoked on a closed connection will
      * do so.
      *
-     * <p>The default implementation of this method simply calls
-     * {@link DelegatingConnection#close() super.close()}.  Subclasses
-     * often wish to change this behavior, normally in conjunction
-     * with changing the behavior of the {@link #close()} method as
-     * well.</p>
+     * <p>If {@code true} was supplied for the {@code
+     * strictClosedChecking} parameter {@linkplain
+     * #ConditionallyCloseableConnection(Connection, boolean, boolean)
+     * at construction time} (strongly recommended), the default
+     * implementation of this method returns a value as if produced by
+     * the following implementation: {@code this.isClosePending() ||
+     * super.isClosed()}.</p>
+     *
+     * <p>If {@code false} was supplied for the {@code
+     * strictClosedChecking} parameter {@linkplain
+     * #ConditionallyCloseableConnection(Connection, boolean, boolean)
+     * at construction time} (not recommended), the default
+     * implementation of this method returns a value as if produced by
+     * the following implementation: {@code super.isClosed()}.</p>
      *
      * <p>Subclasses that override this method must not directly or
-     * indirectly call {@link #checkOpen()} or undefined behavior may
-     * result.</p>
+     * indirectly call {@link #failIfClosed()} or undefined behavior
+     * may result.</p>
      *
      * @return {@code true} if and only if this {@link
      * ConditionallyCloseableConnection} either is, or is to be
@@ -331,12 +496,18 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      *
      * @exception SQLException if a database access error occurs
      *
-     * @see #checkOpen()
+     * @see #isCloseable()
+     *
+     * @see #setCloseable(boolean)
+     *
+     * @see #close()
+     *
+     * @see #isClosePending()
      */
     @Override // DelegatingConnection
     public boolean isClosed() throws SQLException {
         // this.checkOpen(); // Deliberately omitted per spec (and common sense).
-        return super.isClosed();
+        return this.isClosedFunction.getAsBoolean();
     }
 
     @Override // DelegatingConnection
@@ -687,12 +858,12 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      *
      * <p>If this {@link ConditionallyCloseableConnection} was
      * {@linkplain #ConditionallyCloseableConnection(Connection,
-     * boolean, boolean) created with strict closed checking enabled},
-     * then this method will be called by the {@link #checkOpen()}
-     * method.  Otherwise this method is not called internally by
+     * boolean, boolean) created with strict closed checking enabled}
+     * (strongly recommended), then this method will be called where
+     * appropriate.  Otherwise this method is not called internally by
      * default implementations of the methods in the {@link
-     * ConditionallyCloseableConnection} class.  Subclasses may call
-     * this method directly for any reason.</p>
+     * ConditionallyCloseableConnection} class.  Subclasses may, and
+     * often will, call this method directly for any reason.</p>
      *
      * @exception SQLNonTransientConnectionException when an invocation of the
      * {@link #isClosed()} method returns {@code true}; its
@@ -701,6 +872,14 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      *
      * @exception SQLException if {@link #isClosed()} throws a {@link
      * SQLException}
+     *
+     * @see #isClosed()
+     *
+     * @see #isCloseable()
+     *
+     * @see #setCloseable(boolean)
+     *
+     * @see #close()
      */
     protected final void failWhenClosed() throws SQLException {
         if (this.isClosed()) {
@@ -730,6 +909,19 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      */
     // (Invoked by method reference only.)
     private static void doNothing() {
+
+    }
+
+
+    /*
+     * Inner and nested classes.
+     */
+
+
+    @FunctionalInterface
+    private interface SQLBooleanSupplier {
+
+        boolean getAsBoolean() throws SQLException;
 
     }
 

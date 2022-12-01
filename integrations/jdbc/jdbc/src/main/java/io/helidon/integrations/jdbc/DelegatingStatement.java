@@ -24,8 +24,10 @@ import java.sql.Statement;
 import java.util.Objects;
 
 /**
- * A JDBC 4.3-compliant {@link Statement} that delegates to another
- * JDBC 4.3-compliant {@link Statement}.
+ * A <a
+ * href="https://download.oracle.com/otn-pub/jcp/jdbc-4_3-mrel3-spec/jdbc4.3-fr-spec.pdf"
+ * target="_parent">JDBC 4.3</a>-compliant {@link Statement} that
+ * delegates to another JDBC 4.3-compliant {@link Statement}.
  *
  * @param <S> the type of the {@link Statement} subclass
  */

@@ -23,8 +23,11 @@ import java.sql.SQLException;
 import java.util.Objects;
 
 /**
- * A JDBC 4.3-compliant {@link DatabaseMetaData} that delegates to
- * another JDBC 4.3-compliant {@link DatabaseMetaData}.
+ * A <a
+ * href="https://download.oracle.com/otn-pub/jcp/jdbc-4_3-mrel3-spec/jdbc4.3-fr-spec.pdf"
+ * target="_parent">JDBC 4.3</a>-compliant {@link DatabaseMetaData}
+ * that delegates to another JDBC 4.3-compliant {@link
+ * DatabaseMetaData}.
  */
 public class DelegatingDatabaseMetaData implements DatabaseMetaData {
 

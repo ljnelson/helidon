@@ -23,8 +23,10 @@ import java.util.logging.Logger;
 import javax.sql.CommonDataSource;
 
 /**
- * A skeletal implementation of the {@link CommonDataSource}
- * interface.
+ * A <a
+ * href="https://download.oracle.com/otn-pub/jcp/jdbc-4_3-mrel3-spec/jdbc4.3-fr-spec.pdf"
+ * target="_parent">JDBC 4.3</a>-compliant skeletal implementation of
+ * the {@link CommonDataSource} interface.
  */
 public abstract class AbstractCommonDataSource implements CommonDataSource {
 

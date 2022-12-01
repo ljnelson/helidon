@@ -41,8 +41,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A JDBC 4.3-compliant {@link ResultSet} that delegates to another
- * JDBC 4.3-compliant {@link ResultSet}.
+ * A <a
+ * href="https://download.oracle.com/otn-pub/jcp/jdbc-4_3-mrel3-spec/jdbc4.3-fr-spec.pdf"
+ * target="_parent">JDBC 4.3</a>-compliant {@link ResultSet} that
+ * delegates to another JDBC 4.3-compliant {@link ResultSet}.
  */
 public class DelegatingResultSet implements ResultSet {
 

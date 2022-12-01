@@ -20,7 +20,10 @@ import java.sql.SQLException;
 import javax.sql.DataSource;
 
 /**
- * A skeletal implementation of the {@link DataSource} interface.
+ * A <a
+ * href="https://download.oracle.com/otn-pub/jcp/jdbc-4_3-mrel3-spec/jdbc4.3-fr-spec.pdf"
+ * target="_parent">JDBC 4.3</a>-compliant, skeletal implementation of
+ * the {@link DataSource} interface.
  */
 public abstract class AbstractDataSource extends AbstractCommonDataSource implements DataSource {
 

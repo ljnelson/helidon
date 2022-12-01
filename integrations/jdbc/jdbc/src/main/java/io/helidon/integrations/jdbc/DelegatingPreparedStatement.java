@@ -39,8 +39,11 @@ import java.sql.Timestamp;
 import java.util.Calendar;
 
 /**
- * A JDBC 4.3-compliant {@link PreparedStatement} that delegates to
- * another JDBC 4.3-compliant {@link PreparedStatement}.
+ * A <a
+ * href="https://download.oracle.com/otn-pub/jcp/jdbc-4_3-mrel3-spec/jdbc4.3-fr-spec.pdf"
+ * target="_parent">JDBC 4.3</a>-compliant {@link PreparedStatement}
+ * that delegates to another JDBC 4.3-compliant {@link
+ * PreparedStatement}.
  *
  * @param <S> the type of the {@link PreparedStatement} subclass
  */

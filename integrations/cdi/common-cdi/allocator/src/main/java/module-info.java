@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2022 Oracle and/or its affiliates.
+ * Copyright (c) 2022 Oracle and/or its affiliates.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,16 @@
  */
 
 /**
- * Provides classes and interfaces that wrap existing CDI constructs.
+ * Provides classes and interfaces that support allocation in a CDI
+ * context.
  */
 @SuppressWarnings({ "requires-automatic", "requires-transitive-automatic" })
-module io.helidon.integrations.cdi.delegates {
+module io.helidon.integrations.cdi.allocator {
+
     requires transitive jakarta.cdi;
 
-    exports io.helidon.integrations.cdi.delegates;
+    requires transitive jakarta.inject;
+
+    exports io.helidon.integrations.cdi.allocator;
+
 }

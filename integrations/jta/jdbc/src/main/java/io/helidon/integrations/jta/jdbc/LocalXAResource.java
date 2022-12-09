@@ -55,7 +55,7 @@ import static javax.transaction.xa.XAResource.XA_OK;
 import static javax.transaction.xa.XAResource.XA_RDONLY;
 
 /**
- * An {@link XAResource} that adapts an ordinary arbitrary {@link Connection} to the XA contract.
+ * An {@link XAResource} that adapts an ordinary arbitrary {@link Connection} to the {@link XAResource} contract.
  *
  * <p>Instances of this class are safe for concurrent use by multiple threads.</p>
  */
@@ -170,7 +170,12 @@ final class LocalXAResource implements XAResource {
             throw new UncheckedXAException((XAException) new XAException(XAER_RMERR)
                                            .initCause(new NullPointerException("connectionFunction.apply(" + x + ")")));
         }
-        return new Association(Association.BranchState.ACTIVE, x, c);
+        a = new Association(Association.BranchState.ACTIVE, x, c);
+        if (LOGGER.isLoggable(Level.FINE)) {
+            LOGGER.logp(Level.FINE, this.getClass().getName(), "start",
+                        "Created new Association ({0}) for connection ({1}) in state ACTIVE", new Object[] {a, c});
+        }
+        return a;
     }
 
     @Override // XAResource
@@ -445,7 +450,7 @@ final class LocalXAResource implements XAResource {
                     String sqlState = sqlException.getSQLState();
                     if (sqlState != null
                         && (sqlState.startsWith("080")
-                            || sqlState.equalsIgnoreCase("08S01")
+                            || sqlState.equalsIgnoreCase("08S01") // ("ess" not "five")
                             || sqlState.equalsIgnoreCase("JZ006"))) {
                         // Connection-related database error; might be transient; use XAER_RMFAIL instead of XAER_RMERR,
                         // apparently.  See, for example,
@@ -482,17 +487,42 @@ final class LocalXAResource implements XAResource {
     }
 
     // (Remapping BiFunction. Used in end() above.)
-    private static Association activeToIdle(Xid ignored, Association a) {
-        return a.activeToIdle();
+    private static Association activeToIdle(Xid x, Association a) {
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.entering(Association.class.getName(), "activeToIdle", new Object[] {x, a});
+        }
+        if (LOGGER.isLoggable(Level.FINE)) {
+            LOGGER.logp(Level.FINE, Association.class.getName(), "resume",
+                        "Transitioning Association ({0}) from state ACTIVE to state IDLE", a);
+        }
+        a = a.activeToIdle();
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.exiting(Association.class.getName(), "activeToIdle", a);
+        }
+        return a;
     }
 
     // (Remapping BiFunction. Used in end() above.)
-    private static Association suspend(Xid ignored, Association a) {
-        return a.suspend();
+    private static Association suspend(Xid x, Association a) {
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.entering(Association.class.getName(), "suspend", new Object[] {x, a});
+        }
+        if (LOGGER.isLoggable(Level.FINE)) {
+            LOGGER.logp(Level.FINE, Association.class.getName(), "suspend",
+                        "Suspending Association ({0}) and transitioning it from state ACTIVE to state IDLE", a);
+        }
+        a = a.suspend();
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.exiting(Association.class.getName(), "suspend", a);
+        }
+        return a;
     }
 
     // (Remapping BiFunction. Used in start() above.)
     private static Association join(Xid x, Association a) {
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.entering(Association.class.getName(), "join", new Object[] {x, a});
+        }
         if (a == null) {
             throw new UncheckedXAException((XAException) new XAException(XAER_NOTA)
                                            .initCause(new NullPointerException("xid: " + x + "; association: null")));
@@ -503,25 +533,52 @@ final class LocalXAResource implements XAResource {
         }
         switch (a.branchState()) {
         case ACTIVE:
-            return a;
+            if (LOGGER.isLoggable(Level.FINE)) {
+                LOGGER.logp(Level.FINE, Association.class.getName(), "join",
+                            "Joining Association ({0}) in state ACTIVE", a);
+            }
+            break;
         case IDLE:
-            return a.idleToActive();
+            if (LOGGER.isLoggable(Level.FINE)) {
+                LOGGER.logp(Level.FINE, Association.class.getName(), "join",
+                            "Joining Association ({0}) and transitioning it from state IDLE to state ACTIVE", a);
+            }
+            a = a.idleToActive();
+            break;
         default:
             throw new IllegalTransitionException("xid: " + x + "; association: " + a);
         }
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.exiting(Association.class.getName(), "join", a);
+        }
+        return a;
     }
 
     // (Remapping BiFunction. Used in start() above.)
     private static Association resume(Xid x, Association a) {
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.entering(Association.class.getName(), "resume", new Object[] {x, a});
+        }
         if (a == null) {
             throw new UncheckedXAException((XAException) new XAException(XAER_NOTA)
                                            .initCause(new NullPointerException("xid: " + x + "; association: null")));
         }
-        return a.resume();
+        if (LOGGER.isLoggable(Level.FINE)) {
+            LOGGER.logp(Level.FINE, Association.class.getName(), "resume",
+                        "Resuming Association ({0}) and transitioning it from state IDLE to state ACTIVE", a);
+        }
+        a = a.resume();
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.exiting(Association.class.getName(), "resume", a);
+        }
+        return a;
     }
 
     // (Invoked during remap() above. Similar to the UnaryOperator-like methods, but not invoked via method reference.)
     private static Association commitAndReset(Association a, boolean onePhase) {
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.entering(Association.class.getName(), "commitAndReset", new Object[] {a, onePhase});
+        }
         assert a != null; // already vetted
         try {
             a = a.commitAndReset(onePhase);
@@ -531,12 +588,22 @@ final class LocalXAResource implements XAResource {
             throw new UncheckedXAException(e);
         }
         assert a.branchState() == Association.BranchState.NON_EXISTENT_TRANSACTION;
+        if (LOGGER.isLoggable(Level.FINE)) {
+            LOGGER.logp(Level.FINE, Association.class.getName(), "commitAndReset",
+                        "Removing association {0}", a);
+        }
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.exiting(Association.class.getName(), "commitAndReset", "null");
+        }
         // Critically important: remove the association.
         return null;
     }
 
     // (UnaryOperator for supplying via method reference to remap() above.)
     private static Association rollbackAndReset(Association a) {
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.entering(Association.class.getName(), "rollbackAndReset", a);
+        }
         assert a != null; // already vetted
         try {
             a = a.rollbackAndReset();
@@ -544,29 +611,49 @@ final class LocalXAResource implements XAResource {
             throw new UncheckedSQLException(sqlException);
         }
         assert a.branchState() == Association.BranchState.NON_EXISTENT_TRANSACTION;
+        if (LOGGER.isLoggable(Level.FINE)) {
+            LOGGER.logp(Level.FINE, Association.class.getName(), "rollbackAndReset",
+                        "Removing association {0}", a);
+        }
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.exiting(Association.class.getName(), "rollbackAndReset", "null");
+        }
         // Critically important: remove the association.
         return null;
     }
 
     // (UnaryOperator for supplying via method reference to remap() above.)
     private static Association prepare(Association a) {
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.entering(Association.class.getName(), "prepare", a);
+        }
         assert a != null; // already vetted
         assert !a.suspended(); // can't be in T2
         try {
             if (a.connection().isReadOnly()) {
                 a = a.reset();
                 assert a.branchState() == Association.BranchState.NON_EXISTENT_TRANSACTION;
+                if (LOGGER.isLoggable(Level.FINE)) {
+                    LOGGER.logp(Level.FINE, Association.class.getName(), "prepare",
+                                "Removing association {0}", a);
+                }
                 // Critically important: remove the association.
                 a = null;
             }
         } catch (SQLException e) {
             throw new UncheckedSQLException(e);
         }
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.exiting(Association.class.getName(), "preapre", a);
+        }
         return a;
     }
 
     // (UnaryOperator for supplying via method reference to remap() above.)
     private static Association forgetAndReset(Association a) {
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.entering(Association.class.getName(), "forgetAndReset", a);
+        }
         assert a != null; // already vetted
         try {
             a = a.forgetAndReset();
@@ -574,6 +661,13 @@ final class LocalXAResource implements XAResource {
             throw new UncheckedSQLException(e);
         }
         assert a.branchState() == Association.BranchState.NON_EXISTENT_TRANSACTION;
+        if (LOGGER.isLoggable(Level.FINE)) {
+            LOGGER.logp(Level.FINE, Association.class.getName(), "forgetAndReset",
+                        "Removing association {0}", a);
+        }
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.exiting(Association.class.getName(), "forgetAndReset", "null");
+        }
         // Critically important: remove the association.
         return null;
     }
@@ -614,6 +708,8 @@ final class LocalXAResource implements XAResource {
                               boolean suspended,
                               Connection connection,
                               boolean priorAutoCommit) {
+
+        private static final Logger LOGGER = Logger.getLogger(Association.class.getName());
 
         // Branch Association States: (XA specification, table 6-2)
         // T0: Not Associated
@@ -804,16 +900,28 @@ final class LocalXAResource implements XAResource {
 
         private Association runAndReset(SQLRunnable r, SQLRunnable rollbackRunnable, boolean onePhaseCommit)
             throws SQLException, XAException {
-            // If rollbackRunnable is true, then we're doing a commit.
+            // If rollbackRunnable is non-null, then we're doing a commit.
             Association a;
             SQLException sqlException = null;
             try {
                 r.run();
+                if (LOGGER.isLoggable(Level.FINE)) {
+                    LOGGER.logp(Level.FINE, this.getClass().getName(), "runAndReset",
+                                "{0} connection ({1}) in Association {2}",
+                                new Object[] {rollbackRunnable == null ? "Rolled back" : "Committed",
+                                              this.connection(),
+                                              this});
+                }
             } catch (SQLException e) {
                 sqlException = e;
                 if (rollbackRunnable != null) {
                     try {
                         rollbackRunnable.run();
+                        if (LOGGER.isLoggable(Level.FINE)) {
+                            LOGGER.logp(Level.FINE, this.getClass().getName(), "runAndReset",
+                                        "Rolled back connection ({0}) in Association {2}",
+                                        new Object[] {this.connection(), this});
+                        }
                         if (onePhaseCommit) {
                             // localXAResource.commit(someXid, true) caused us to try to call
                             // someConnection.commit(). That failed, and we successfully rolled back. Now we have to
@@ -850,6 +958,13 @@ final class LocalXAResource implements XAResource {
         private Association reset() throws SQLException {
             Connection connection = this.connection();
             connection.setAutoCommit(this.priorAutoCommit());
+            if (LOGGER.isLoggable(Level.FINE)) {
+                LOGGER.logp(Level.FINE, this.getClass().getName(), "reset",
+                            "Restored autoCommit to {0} on connection {1}",
+                            new Object[] {this.priorAutoCommit(), connection});
+                LOGGER.logp(Level.FINE, this.getClass().getName(), "reset",
+                            "Transitioning Association {0} to NON_EXISTENT_TRANSACTION", this);
+            }
             return new Association(BranchState.NON_EXISTENT_TRANSACTION,
                                    this.xid(),
                                    false,

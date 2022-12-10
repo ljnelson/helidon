@@ -20,6 +20,7 @@
  *
  * @see io.helidon.integrations.cdi.referencecountedcontext.ReferenceCountedExtension
  */
+@Deprecated(forRemoval = true, since = "3.0.3")
 @SuppressWarnings({ "requires-automatic", "requires-transitive-automatic" })
 module io.helidon.integrations.cdi.referencecountedcontext {
     requires io.helidon.integrations.cdi.delegates;

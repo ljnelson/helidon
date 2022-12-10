@@ -47,7 +47,8 @@ import java.util.concurrent.Executor;
  *
  * <p>Instances of this class are not necessarily safe for concurrent
  * use by multiple threads because their {@link Connection} delegates
- * may not be.</p>
+ * may not be. JDBC 4.3 does not require thread safety from any JDBC
+ * construct.</p>
  *
  * @see #isClosed()
  *
@@ -123,6 +124,14 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      */
     private volatile boolean closeable;
 
+    /**
+     * Whether or not a {@link #close()} request has been issued from
+     * another thread.
+     *
+     * @see #isClosePending()
+     *
+     * @see #isClosed()
+     */
     private volatile boolean closePending;
 
 
@@ -477,7 +486,8 @@ public class ConditionallyCloseableConnection extends DelegatingConnection {
      * #ConditionallyCloseableConnection(Connection, boolean, boolean)
      * at construction time} (strongly recommended), the default
      * implementation of this method returns a value as if produced by
-     * the following implementation: {@code this.isClosePending() ||
+     * the following implementation: {@code this.}{@link
+     * #isClosePending() isClosePending() }{@code ||
      * super.isClosed()}.</p>
      *
      * <p>If {@code false} was supplied for the {@code

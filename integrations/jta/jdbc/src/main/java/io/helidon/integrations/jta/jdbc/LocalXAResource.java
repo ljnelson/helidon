@@ -55,7 +55,11 @@ import static javax.transaction.xa.XAResource.XA_OK;
 import static javax.transaction.xa.XAResource.XA_RDONLY;
 
 /**
- * An {@link XAResource} that adapts an ordinary arbitrary {@link Connection} to the {@link XAResource} contract.
+ * An {@link XAResource} that adapts an ordinary arbitrary {@link Connection} as much as possible to the {@link
+ * XAResource} contract.
+ *
+ * <p><strong>Note:</strong> instances of this class are lossless in the presence of one-phase commit operations and
+ * potentially lossy in the presence of two-phase commit operations.</p>
  *
  * <p>Instances of this class are safe for concurrent use by multiple threads.</p>
  */
@@ -151,6 +155,9 @@ final class LocalXAResource implements XAResource {
 
     // (Remapping BiFunction, used in start() above and supplied to computeAssociation() below.)
     private Association start(Xid x, Association a) {
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.entering(this.getClass().getName(), "start", new Object[] {x, a});
+        }
         assert x != null; // x has already been vetted and is known to be non-null
         if (a != null) {
             throw new UncheckedXAException((XAException) new XAException(XAER_DUPID)
@@ -174,6 +181,9 @@ final class LocalXAResource implements XAResource {
         if (LOGGER.isLoggable(Level.FINE)) {
             LOGGER.logp(Level.FINE, this.getClass().getName(), "start",
                         "Created new Association ({0}) for connection ({1}) in state ACTIVE", new Object[] {a, c});
+        }
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.exiting(this.getClass().getName(), "start", a);
         }
         return a;
     }
@@ -240,12 +250,12 @@ final class LocalXAResource implements XAResource {
         }
         requireNonNullXid(xid);
 
-        // Error handling needs to be very specific. XAER_RMERR indicates catastrophic failure (like if a local
-        // rollback(), issued in response to a local commit() failure, occurs).  XAER_RMFAIL indicates a transient
+        // Error handling needs to be extraordinarily specific. XAER_RMERR indicates catastrophic failure (like if a
+        // local rollback(), issued in response to a local commit() failure, occurs).  XAER_RMFAIL indicates a transient
         // error, i.e. we tried to Do The Thing but for now it Didn't Work.
         //
-        // Concrete examples: You can see that XAER_RMERR and (the completely
-        // non-transient) XAER_PROTO (for example) are both treated as Equally Bad Things:
+        // Concrete examples: You can see that XAER_RMERR and (the completely non-transient) XAER_PROTO (for example)
+        // are both treated as Equally Bad Things:
         // https://github.com/jbosstm/narayana/blob/c5f02d07edb34964b64341974ab689ea44536603/ArjunaJTA/jta/classes/com/arjuna/ats/internal/jta/resources/arjunacore/XAResourceRecord.java#L512-L514
         //
         // You can also see that XAER_RMFAIL does something different and is no different from XA_RETRY:
@@ -350,6 +360,8 @@ final class LocalXAResource implements XAResource {
 
     @Override // XAResource
     public boolean setTransactionTimeout(int transactionTimeoutInSeconds) {
+        // (Interesting note: this is the first method that is called by the TransactionManager, i.e. before #start(Xid,
+        // int).)
         if (LOGGER.isLoggable(Level.FINER)) {
             LOGGER.entering(this.getClass().getName(), "setTransactionTimeout", transactionTimeoutInSeconds);
             LOGGER.exiting(this.getClass().getName(), "setTransactionTimeout", false);
@@ -491,10 +503,6 @@ final class LocalXAResource implements XAResource {
         if (LOGGER.isLoggable(Level.FINER)) {
             LOGGER.entering(Association.class.getName(), "activeToIdle", new Object[] {x, a});
         }
-        if (LOGGER.isLoggable(Level.FINE)) {
-            LOGGER.logp(Level.FINE, Association.class.getName(), "resume",
-                        "Transitioning Association ({0}) from state ACTIVE to state IDLE", a);
-        }
         a = a.activeToIdle();
         if (LOGGER.isLoggable(Level.FINER)) {
             LOGGER.exiting(Association.class.getName(), "activeToIdle", a);
@@ -506,10 +514,6 @@ final class LocalXAResource implements XAResource {
     private static Association suspend(Xid x, Association a) {
         if (LOGGER.isLoggable(Level.FINER)) {
             LOGGER.entering(Association.class.getName(), "suspend", new Object[] {x, a});
-        }
-        if (LOGGER.isLoggable(Level.FINE)) {
-            LOGGER.logp(Level.FINE, Association.class.getName(), "suspend",
-                        "Suspending Association ({0}) and transitioning it from state ACTIVE to state IDLE", a);
         }
         a = a.suspend();
         if (LOGGER.isLoggable(Level.FINER)) {
@@ -562,10 +566,6 @@ final class LocalXAResource implements XAResource {
         if (a == null) {
             throw new UncheckedXAException((XAException) new XAException(XAER_NOTA)
                                            .initCause(new NullPointerException("xid: " + x + "; association: null")));
-        }
-        if (LOGGER.isLoggable(Level.FINE)) {
-            LOGGER.logp(Level.FINE, Association.class.getName(), "resume",
-                        "Resuming Association ({0}) and transitioning it from state IDLE to state ACTIVE", a);
         }
         a = a.resume();
         if (LOGGER.isLoggable(Level.FINER)) {
@@ -773,6 +773,10 @@ final class LocalXAResource implements XAResource {
                     //
                     // Associated -> Associated (T1 -> T1; unchanged)
                     // Active     -> Idle       (S1 -> S2)
+                    if (LOGGER.isLoggable(Level.FINE)) {
+                        LOGGER.logp(Level.FINE, Association.class.getName(), "activeToIdle",
+                                    "Transitioning Association ({0}) from state ACTIVE to state IDLE", this);
+                    }
                     return new Association(BranchState.IDLE,
                                            this.xid(),
                                            false,
@@ -793,6 +797,10 @@ final class LocalXAResource implements XAResource {
                     //
                     // Associated -> Associated    (T1 -> T1; unchanged)
                     // Active     -> Rollback Only (S1 -> S4)
+                    if (LOGGER.isLoggable(Level.FINE)) {
+                        LOGGER.logp(Level.FINE, Association.class.getName(), "activeToRollbackOnly",
+                                    "Transitioning Association ({0}) from state ACTIVE to state ROLLBACK_ONLY", this);
+                    }
                     return new Association(BranchState.ROLLBACK_ONLY,
                                            this.xid(),
                                            false,
@@ -813,6 +821,10 @@ final class LocalXAResource implements XAResource {
                     //
                     // Associated -> Associated (T1 -> T1; unchanged)
                     // Idle       -> Active     (S2 -> S1)
+                    if (LOGGER.isLoggable(Level.FINE)) {
+                        LOGGER.logp(Level.FINE, Association.class.getName(), "idleToActive",
+                                    "Transitioning Association ({0}) from state IDLE to state ACTIVE", this);
+                    }
                     return new Association(BranchState.ACTIVE,
                                            this.xid(),
                                            false,
@@ -833,6 +845,10 @@ final class LocalXAResource implements XAResource {
                     //
                     // Associated -> Associated    (T1 -> T1; unchanged)
                     // Idle       -> Rollback Only (S2 -> S4)
+                    if (LOGGER.isLoggable(Level.FINE)) {
+                        LOGGER.logp(Level.FINE, Association.class.getName(), "idleToRollbackOnly",
+                                    "Transitioning Association ({0}) from state IDLE to state ROLLBACK_ONLY", this);
+                    }
                     return new Association(BranchState.ROLLBACK_ONLY,
                                            this.xid(),
                                            false,
@@ -853,6 +869,10 @@ final class LocalXAResource implements XAResource {
                     //
                     // Associated -> Association Suspended (T1 -> T2)
                     // Active     -> Idle                  (S1 -> S2)
+                    if (LOGGER.isLoggable(Level.FINE)) {
+                        LOGGER.logp(Level.FINE, Association.class.getName(), "suspend",
+                                    "Suspending Association ({0}) and transitioning from state ACTIVE to state IDLE", this);
+                    }
                     return new Association(BranchState.IDLE,
                                            this.xid(),
                                            true,
@@ -873,6 +893,10 @@ final class LocalXAResource implements XAResource {
                     //
                     // Association Suspended -> Associated (T2 -> T1)
                     // Idle                  -> Active     (S2 -> S1)
+                    if (LOGGER.isLoggable(Level.FINE)) {
+                        LOGGER.logp(Level.FINE, Association.class.getName(), "resume",
+                                    "Resuming Association ({0}) from state IDLE to state ACTIVE", this);
+                    }
                     return new Association(BranchState.ACTIVE,
                                            this.xid(),
                                            false,
@@ -906,11 +930,15 @@ final class LocalXAResource implements XAResource {
             try {
                 r.run();
                 if (LOGGER.isLoggable(Level.FINE)) {
+                    boolean committed = rollbackRunnable != null;
+                    StringBuilder message = new StringBuilder(committed ? "Committed " : "Rolled back ");
+                    message.append("connection (").append(this.connection()).append(") ");
+                    if (committed) {
+                        message.append("with ").append(onePhaseCommit ? "one-phase " : "two-phase ").append("semantics ");
+                    }
+                    message.append("in Association ").append(this);
                     LOGGER.logp(Level.FINE, this.getClass().getName(), "runAndReset",
-                                "{0} connection ({1}) in Association {2}",
-                                new Object[] {rollbackRunnable == null ? "Rolled back" : "Committed",
-                                              this.connection(),
-                                              this});
+                                message.toString());
                 }
             } catch (SQLException e) {
                 sqlException = e;
@@ -960,7 +988,7 @@ final class LocalXAResource implements XAResource {
             connection.setAutoCommit(this.priorAutoCommit());
             if (LOGGER.isLoggable(Level.FINE)) {
                 LOGGER.logp(Level.FINE, this.getClass().getName(), "reset",
-                            "Restored autoCommit to {0} on connection {1}",
+                            "Resetting; restored autoCommit to {0} on connection {1}",
                             new Object[] {this.priorAutoCommit(), connection});
                 LOGGER.logp(Level.FINE, this.getClass().getName(), "reset",
                             "Transitioning Association {0} to NON_EXISTENT_TRANSACTION", this);
@@ -972,6 +1000,13 @@ final class LocalXAResource implements XAResource {
                                    this.priorAutoCommit());
         }
 
+        // Transaction Branch States (XA specification, table 6-4):
+        // S0: Non-existent Transaction
+        // S1: Active
+        // S2: Idle
+        // S3: Prepared
+        // S4: Rollback Only
+        // S5: Heuristically Completed
         enum BranchState {
             NON_EXISTENT_TRANSACTION, // S0
             ACTIVE, // S1
